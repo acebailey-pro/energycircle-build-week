@@ -16,7 +16,7 @@ inverter, and critical household loads.
 2. Drag the upper reservoir uphill.
 3. Watch geometry, pipe routing, head, hydraulic loss, stored energy, runtime,
    warnings, system verdict, and the causal explanation update together.
-4. Switch between **System**, **Site plan**, and **Blueprint** to see the same
+4. Switch between **Property**, **System**, and **Blueprint** to see the same
    project revision represented three ways.
 5. Toggle **Intake obstruction** to trace a deterministic failure through the
    water path and into the energy verdict.
@@ -33,7 +33,7 @@ merely reporting a score.
 - A deterministic hydraulic and energy calculation engine
 - Darcy-Weisbach pipe-loss modeling for the reference system
 - Live head, loss, storage, runtime, warning, and feasibility outputs
-- System, site-plan, and blueprint views derived from one canonical state
+- Property, system, and blueprint views derived from one canonical state
 - Causal insights that explain consequences without making unsupported decisions
 - Explicit **assumed**, **calculated**, and **unknown** truth states
 - Deterministic intake-obstruction failure propagation
