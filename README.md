@@ -27,6 +27,11 @@ representations through the same canonical-state model.
 8. Continue into the governed **Engineering Package**: inspect the connected
    component schedule, itemized planning budget, five-condition resilience
    matrix, family-specific field sequence, and portable revision record.
+9. Open **$0 to complete** to compare existing-property, reclaimed or assisted,
+   one-service starter, staged, and complete-system paths without presenting
+   avoided demand or donated equipment as free whole-property generation.
+10. Use **Print / save PDF** to produce a detailed multi-page pre-build field
+    package from the current canonical revision.
 
 The initial reference scenario is intentionally **FRAGILE**: its modeled usable
 storage is 6.47 kWh against a defined 7.2 kWh autonomy target. One direct
@@ -58,6 +63,12 @@ merely reporting a score.
 - Six-stage, family-specific field sequences that distinguish planning from
   construction and expose professional-review boundaries
 - Stable revision fingerprints and downloadable machine-readable project records
+- Five-stage access paths for all nine families, including an explicit $0 entry,
+  deterministic starter and staged output, preserved-investment guidance, and
+  honest capability boundaries
+- A print-quality, ten-page pre-build field package covering decision summary,
+  access, inputs, truth states, architecture, connections, component schedule,
+  budget, procurement, resilience, field sequence, exclusions, and sign-off
 - Plain-language property questions grounded in the active deterministic result
 - Keyboard-accessible component movement and reduced-motion support
 - Unit, server-render, and real-browser interaction tests

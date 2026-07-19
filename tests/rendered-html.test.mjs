@@ -47,6 +47,9 @@ test("server-renders the EnergyCircle reference experience", async () => {
   assert.match(html, /What this system can do/);
   assert.match(html, /The complete engineering package follows every change/);
   assert.match(html, /Component schedule/);
+  assert.match(html, /\$0 to complete/);
+  assert.match(html, /Print \/ save PDF/);
+  assert.match(html, /Pre-build field package/);
   assert.match(html, /Revision record/);
   assert.match(html, /What this result knows/);
   assert.doesNotMatch(html, /Your site is taking shape|react-loading-skeleton/);

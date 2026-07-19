@@ -16,9 +16,28 @@ test("every family produces a complete package from its canonical revision", () 
     assert.equal(document.componentSchedule.length, Object.keys(project.components).length, family.id);
     assert.equal(document.budget.length, Object.keys(project.components).length + 1, family.id);
     assert.equal(document.resilience.length, 5, family.id);
+    assert.equal(document.accessPath.length, 5, family.id);
+    assert.equal(document.accessPath[0].cost.low, 0, family.id);
+    assert.equal(document.accessPath[0].cost.high, 0, family.id);
+    assert.equal(document.accessPath[0].outputTruth, "unknown", family.id);
+    assert.equal(document.accessPath[2].outputTruth, "calculated", family.id);
     assert.equal(document.fieldSequence.length, 6, family.id);
     assert.ok(document.exclusionCriteria.length >= 2, family.id);
     assert.deepEqual(document.record.project, project, family.id);
+  }
+});
+
+test("access tiers preserve affordability without claiming free whole-property output", () => {
+  for (const family of ENERGY_FAMILIES) {
+    const document = deriveEngineeringPackage(createReferenceProject(family.id));
+    const existing = document.accessPath[0];
+    const complete = document.accessPath.at(-1);
+
+    assert.match(existing.costLabel, /^\$0/);
+    assert.match(existing.modeledOutput, /No purchased generation modeled/i);
+    assert.ok(existing.limitation.length > 40, family.id);
+    assert.ok(complete.cost.high > 0, family.id);
+    assert.match(complete.modeledOutput, /against the current defined target/i);
   }
 });
 

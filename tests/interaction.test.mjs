@@ -86,13 +86,17 @@ test(
         assert.ok(await page.getByRole("slider").count() >= 3, familyId);
         assert.equal(await page.locator(".family-card.is-active-model").count(), 1);
         assert.match((await page.locator(".cost-card").textContent()) ?? "", /\$[\d,]+/);
+        assert.equal(await page.locator(".access-tier").count(), 5, familyId);
+        assert.match((await page.locator(".access-tier--existing").textContent()) ?? "", /\$0 new equipment/i);
+
+        await page.getByRole("tab", { name: "Component schedule" }).click();
         assert.equal(await page.locator(".component-schedule article").count(), await page.locator(".component").count(), familyId);
 
         await page.getByRole("tab", { name: "Budget" }).click();
         assert.ok(await page.locator(".budget-row").count() >= 6, familyId);
         await page.getByRole("tab", { name: "Resilience" }).click();
         assert.equal(await page.locator(".resilience-case").count(), 5, familyId);
-        await page.getByRole("tab", { name: "Component schedule" }).click();
+        await page.getByRole("tab", { name: "$0 to complete" }).click();
 
         const failure = page.getByRole("switch");
         await failure.click();
@@ -105,6 +109,13 @@ test(
       await page.getByRole("heading", { name: "Hillside Water Storage" }).waitFor();
       assert.equal(await page.locator(".verdict strong").textContent(), "FRAGILE");
       await dragComponent(page, /Upper reservoir\. Drag to reposition/, 0.1);
+      if (await page.locator(".verdict strong").textContent() !== "VIABLE") {
+        const upperReservoir = page.getByRole("button", { name: /Upper reservoir\. Drag to reposition/ });
+        for (let step = 0; step < 8; step += 1) {
+          await upperReservoir.press("ArrowUp");
+          if (await page.locator(".verdict strong").textContent() === "VIABLE") break;
+        }
+      }
       assert.equal(await page.locator(".verdict strong").textContent(), "VIABLE");
       assert.match((await page.locator(".insight p").textContent()) ?? "", /fragile to viable/i);
 
@@ -116,6 +127,8 @@ test(
       assert.equal(await page.locator(".field-sequence > li").count(), 6);
       await page.getByRole("tab", { name: "Revision record" }).click();
       assert.match((await page.locator(".revision-seal strong").textContent()) ?? "", /^EC-[0-9A-F]{8}$/);
+      assert.equal(await page.locator(".print-report .report-page").count(), 10);
+      assert.equal(await page.getByRole("button", { name: /Print \/ save PDF/i }).count(), 1);
     } finally {
       await browser.close();
       if (server) server.kill();

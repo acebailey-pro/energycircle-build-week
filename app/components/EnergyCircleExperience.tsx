@@ -33,9 +33,10 @@ import {
 } from "../lib/energy-engine";
 import { DEFAULT_FAMILY, ENERGY_FAMILIES } from "../lib/architecture-catalog";
 import { deriveEngineeringPackage } from "../lib/engineering-package";
+import { EnergyCircleReport } from "./EnergyCircleReport";
 
 type ViewMode = "property" | "system" | "blueprint";
-type PackageView = "components" | "budget" | "resilience" | "field" | "record";
+type PackageView = "access" | "components" | "budget" | "resilience" | "field" | "record";
 
 const formatValue = (metric: TruthValue) =>
   metric.value === null ? "Unknown" : `${String(metric.value)} ${metric.unit}`;
@@ -139,7 +140,7 @@ export function EnergyCircleExperience() {
   const [lastChanged, setLastChanged] = useState<ComponentId>("upperReservoir");
   const [promptFamily, setPromptFamily] = useState<LiveFamilyId | null>("gravity-storage");
   const [activeQuestion, setActiveQuestion] = useState(FAMILY_SCENARIOS["gravity-storage"].questions[0]);
-  const [packageView, setPackageView] = useState<PackageView>("components");
+  const [packageView, setPackageView] = useState<PackageView>("access");
   const surfaceRef = useRef<HTMLDivElement>(null);
   const scenarioRef = useRef<HTMLElement>(null);
   const transactionRef = useRef<PreviewTransaction | null>(null);
@@ -442,12 +443,13 @@ export function EnergyCircleExperience() {
       <section className="engineering-package" aria-labelledby="package-title">
         <div className="engineering-package__heading">
           <div><span className="eyebrow">From model to field</span><h2 id="package-title">The complete engineering package follows every change.</h2></div>
-          <div className="revision-seal"><span>Current record</span><strong>{engineeringPackage.fingerprint}</strong><small>Revision {engineeringPackage.revision}</small></div>
+          <div className="package-actions"><button type="button" className="print-package" onClick={() => window.print()}><span>Detailed field package</span><strong>Print / save PDF</strong></button><div className="revision-seal"><span>Current record</span><strong>{engineeringPackage.fingerprint}</strong><small>Revision {engineeringPackage.revision}</small></div></div>
         </div>
         <p className="engineering-package__intro">The interactive property is the front door. This package carries the same governed revision into equipment, budget, resilience, execution, and a portable project record.</p>
 
         <div className="package-tabs" role="tablist" aria-label="Engineering package views">
           {([
+            ["access", "$0 to complete"],
             ["components", "Component schedule"],
             ["budget", "Budget"],
             ["resilience", "Resilience"],
@@ -457,6 +459,19 @@ export function EnergyCircleExperience() {
         </div>
 
         <div className="package-panel" role="tabpanel">
+          {packageView === "access" && <>
+            <div className="package-panel__topline"><div><span className="eyebrow">Access path</span><h3>Start with what is already available.</h3></div><p>A free entry may provide direct service or reduce demand. It is not mislabeled as a free whole-property power system.</p></div>
+            <div className="access-path">{engineeringPackage.accessPath.map((tier, index) => <article key={tier.id} className={`access-tier access-tier--${tier.id}`}>
+              <div className="access-tier__rail"><span>{String(index + 1).padStart(2, "0")}</span><i /></div>
+              <div className="access-tier__body"><div className="access-tier__title"><div><span>{tier.id === "existing" ? "Begin here" : "Build stage"}</span><h4>{tier.label}</h4></div><strong>{tier.costLabel}</strong></div>
+                <p className="access-tier__service">{tier.service}</p>
+                <div className="access-tier__output"><span>Real-world output</span><p>{tier.modeledOutput}</p><small className={`truth truth--${tier.outputTruth}`}>{tier.outputTruth}</small></div>
+                <div className="access-tier__details"><div><strong>Requires</strong><ul>{tier.requires.map((item) => <li key={item}>{item}</li>)}</ul></div><div><strong>Honest boundary</strong><p>{tier.limitation}</p></div><div><strong>Investment preserved</strong><p>{tier.carriesForward}</p></div></div>
+              </div>
+            </article>)}</div>
+            <aside className="access-disclosure"><strong>Assistance changes out-of-pocket cost, not engineering truth.</strong><p>Donated equipment, local programs, rebates, and weatherization assistance may reduce what an owner pays. Ratings, compatibility, containment, protection, inspection, and maintenance still have to be resolved.</p></aside>
+          </>}
+
           {packageView === "components" && <>
             <div className="package-panel__topline"><div><span className="eyebrow">Component schedule</span><h3>{engineeringPackage.componentSchedule.length} connected assemblies</h3></div><p>Roles, dependencies, failure modes, and maintenance checkpoints are derived from the active system graph.</p></div>
             <div className="component-schedule">{engineeringPackage.componentSchedule.map((item) => <article key={item.id}>
@@ -500,6 +515,8 @@ export function EnergyCircleExperience() {
         <div><span className="eyebrow">Model boundary</span><h2>What this result knows</h2></div>
         <div className="truth-strip__items">{result.assumptions.slice(0, 3).map((assumption) => <span key={assumption.label}><i className="dot dot--assumed" />{assumption.label}: <strong>{assumption.value}</strong></span>)}{result.unknowns.slice(0, 2).map((unknown) => <span key={unknown.label}><i className="dot dot--unknown" />{unknown.label}: <strong>unknown</strong></span>)}</div>
       </section>
+
+      <EnergyCircleReport project={renderedProject} document={engineeringPackage} />
 
       <footer><span>EnergyCircle · Property energy systems, made legible.</span><span>Reference models · Not construction recommendations</span></footer>
     </main>

@@ -50,6 +50,19 @@ export interface FieldPhase {
   boundary?: string;
 }
 
+export interface AccessTier {
+  id: "existing" | "reclaimed" | "starter" | "staged" | "complete";
+  label: string;
+  cost: { low: number; high: number };
+  costLabel: string;
+  service: string;
+  modeledOutput: string;
+  outputTruth: TruthState;
+  requires: string[];
+  limitation: string;
+  carriesForward: string;
+}
+
 export interface EngineeringPackage {
   projectId: string;
   revision: number;
@@ -60,6 +73,7 @@ export interface EngineeringPackage {
   componentSchedule: ScheduledComponent[];
   budget: BudgetLine[];
   resilience: ResilienceCase[];
+  accessPath: AccessTier[];
   fieldSequence: FieldPhase[];
   record: {
     project: ProjectModel;
@@ -160,6 +174,118 @@ const FAMILY_FIELD_NOTES: Record<EnergyFamilyId, {
     boundary: "Multi-source protection, controls, interconnection, stored energy, and water infrastructure require qualified review.",
     resourceKey: "hybridSolarKw",
     storageKey: "batteryCapacityKwh",
+  },
+};
+
+const FAMILY_ACCESS: Record<EnergyFamilyId, {
+  existing: string;
+  reclaimed: string;
+  starter: string;
+  existingRequires: string[];
+  reclaimedRequires: string[];
+  starterRequires: string[];
+  existingLimit: string;
+  reclaimedLimit: string;
+  carry: string;
+}> = {
+  "solar-pv": {
+    existing: "Use daylight, schedule flexible loads into sunny hours, and remove avoidable standby demand before buying generation.",
+    reclaimed: "Use a donated or already-owned low-voltage panel and compatible power bank for one isolated DC service such as lighting or communications.",
+    starter: "Serve a deliberately small critical-load circuit with a protected panel, controller, storage, and DC or inverter output.",
+    existingRequires: ["Existing daylight or sunny operating window", "A measured list of loads that can be shifted or eliminated"],
+    reclaimedRequires: ["Known panel and storage ratings", "Compatible charge control, fusing, wiring, enclosure, and connectors"],
+    starterRequires: ["Measured solar access", "Defined critical load", "Code-compliant protection and equipment"],
+    existingLimit: "Reduces or shifts consumption but does not create stored electricity.",
+    reclaimedLimit: "Salvaged equipment condition and compatibility are unknown until tested; never connect improvised equipment to household wiring.",
+    carry: "Load measurements, solar survey, protected wiring, and appropriately rated equipment can inform the next stage.",
+  },
+  "solar-thermal": {
+    existing: "Use existing sun for daylight, passive space warming, and solar clothes drying while controlling overheating with shade and ventilation.",
+    reclaimed: "Recover reusable insulation, glazing, or an existing dark absorber for a non-potable, non-pressurized demonstration loop.",
+    starter: "Serve one bounded thermal load with a purpose-built collector, protected loop, heat exchanger, and small insulated store.",
+    existingRequires: ["A useful sunny exposure", "A safe way to prevent unwanted summer heat"],
+    reclaimedRequires: ["Materials suitable for expected temperatures", "No potable-water, pressurized, roof, or unattended connection"],
+    starterRequires: ["Measured hot-water or heat demand", "Freeze, stagnation, scald, and pressure protection"],
+    existingLimit: "Passive gains are seasonal and cannot guarantee hot-water temperature or runtime.",
+    reclaimedLimit: "A demonstration collector is not a domestic hot-water appliance and must not be treated as one.",
+    carry: "Shade survey, demand log, insulated routing, and measured collector performance remain useful.",
+  },
+  wind: {
+    existing: "Use natural ventilation where climate, openings, and indoor-air conditions allow, and begin a wind observation log at the intended site.",
+    reclaimed: "Repurpose an existing mechanical rotor only for a guarded, low-speed direct task or learning rig with no tower or household connection.",
+    starter: "Power one small isolated load or lift a limited amount of water with rated equipment and safe overspeed control.",
+    existingRequires: ["Safe operable windows or vents", "A site observation period across different weather"],
+    reclaimedRequires: ["Guarded rotating parts", "Stable ground-level mounting and a defined direct load"],
+    starterRequires: ["Measured wind at operating height", "Setbacks, braking, grounding, and rated storage or direct load"],
+    existingLimit: "Ventilation and observation do not produce dependable electrical energy.",
+    reclaimedLimit: "An improvised rotor is not safe for a tower, high speed, battery charging, or grid connection.",
+    carry: "The wind record, load definition, setbacks, and safe direct-use experiment reduce later uncertainty.",
+  },
+  "flow-power": {
+    existing: "Use existing elevation or pressure for direct water delivery where the route already works without pumping.",
+    reclaimed: "Measure seasonal flow, pressure, and head with borrowed tools and prove a low-pressure direct-use route before considering generation.",
+    starter: "Serve one small continuous electrical or mechanical load from a verified year-round flow or pressure source.",
+    existingRequires: ["A lawful water source", "Existing usable elevation or pressure", "Safe overflow and drainage"],
+    reclaimedRequires: ["Seasonal measurements", "A screened, reversible test that does not disturb a waterway"],
+    starterRequires: ["Verified minimum flow and net head", "Water rights, bypass, screening, pressure protection, and electrical controls"],
+    existingLimit: "Direct delivery is site-dependent and may provide water service without producing electricity.",
+    reclaimedLimit: "A short test cannot establish dry-season output, ecological acceptability, or legal use.",
+    carry: "Flow duration, head survey, route measurements, and protected intake concepts carry forward.",
+  },
+  bioenergy: {
+    existing: "Separate and measure clean organic residues so their quantity, seasonality, moisture, and existing disposal burden become visible.",
+    reclaimed: "Use existing composting or approved biomass practices to reduce waste handling; treat recoverable heat or gas only as unverified potential.",
+    starter: "Supply one controlled heat or gas load with purpose-built containment, monitoring, pressure relief, and safe end use.",
+    existingRequires: ["A consistent clean feedstock stream", "A safe existing waste-management practice"],
+    reclaimedRequires: ["Contamination control", "No improvised gas storage, indoor combustion, or sealed vessel"],
+    starterRequires: ["Feedstock characterization", "Gas-safe separation, relief, leak detection, digestate path, and specialist review"],
+    existingLimit: "Inventorying or composting feedstock does not create usable governed energy.",
+    reclaimedLimit: "Combustible gas and sealed biological vessels are never near-zero-cost DIY shortcuts.",
+    carry: "Feedstock logs, siting, containment planning, and heat-load measurements inform a later system.",
+  },
+  "thermal-recovery": {
+    existing: "Reduce avoidable heat loss by coordinating when warm equipment operates, closing unused paths, and using existing heat in the occupied zone when safe.",
+    reclaimed: "Reuse suitable insulation or repair existing duct and pipe insulation without altering combustion, refrigeration, exhaust, or potable-water equipment.",
+    starter: "Recover one measured low-risk heat stream through a rated exchanger into a bounded thermal load.",
+    existingRequires: ["An identifiable waste-heat source", "No indoor-air, moisture, contamination, or combustion penalty"],
+    reclaimedRequires: ["Materials rated for the surface temperature", "Access that does not disturb hazardous or code-regulated equipment"],
+    starterRequires: ["Measured source temperature and duration", "Compatible exchanger, isolation, flow control, and over-temperature protection"],
+    existingLimit: "Operational changes reduce loss but may not move heat to a different load.",
+    reclaimedLimit: "Insulation cannot correct unsafe combustion, exhaust, refrigerant, or electrical defects.",
+    carry: "Temperature logs, operating schedule, insulation, and load coincidence measurements remain valuable.",
+  },
+  "mechanical-human": {
+    existing: "Use an existing hand, foot, bicycle, pulley, or gravity mechanism directly for a useful task instead of converting motion to electricity.",
+    reclaimed: "Adapt a sound existing bicycle or hand drive to a guarded direct pump, grinder, fan, or low-voltage demonstration load.",
+    starter: "Provide short-duration emergency charging or direct work with rated transmission, guarding, generator, controls, and small storage.",
+    existingRequires: ["An existing mechanism in safe condition", "A task matched to human power and duration"],
+    reclaimedRequires: ["Stable mounting", "Guards, alignment, ergonomic fit, and an emergency stop"],
+    starterRequires: ["Measured duty cycle", "Rated low-voltage generation, protection, wiring, and storage"],
+    existingLimit: "Human output is limited and best used directly; it cannot support ordinary whole-home loads.",
+    reclaimedLimit: "Rotating parts, improvised generators, and batteries still require guarding and protection.",
+    carry: "The frame, direct-drive task, measured effort, guarding, and low-voltage protection may carry forward.",
+  },
+  "gravity-storage": {
+    existing: "Use an existing elevated tank, pond, spring, or cistern for gravity-fed water service and avoid pumping whenever the measured head is sufficient.",
+    reclaimed: "Use existing sound tanks, pipe, and valves for a low-pressure water-transfer test with overflow, drainage, and no electrical generation claim.",
+    starter: "Move and release a bounded water volume through a protected route to prove head, flow, loss, and one useful direct-water task.",
+    existingRequires: ["Existing lawful stored water above the load", "Verified containment, overflow, route, and water quality for the intended use"],
+    reclaimedRequires: ["Pressure-rated reusable components in known condition", "Safe supports, isolation, drainage, and screened intake"],
+    starterRequires: ["Surveyed elevation and route", "Known water volume, pipe rating, safe containment, pump or recharge source, and controlled discharge"],
+    existingLimit: "Gravity-fed water can avoid pumping but does not automatically provide useful electrical storage.",
+    reclaimedLimit: "Unknown tanks, unsupported water mass, buried damage, and unverified pressure components are not acceptable shortcuts.",
+    carry: "Survey, water storage, protected routing, measurements, and safe civil work can become part of a larger loop.",
+  },
+  "coordinated-hybrid": {
+    existing: "Coordinate existing daylight, thermal gains, water elevation, manual work, appliance timing, and available generation around priority loads.",
+    reclaimed: "Combine already-owned isolated devices operationally—without electrically paralleling incompatible sources or storage.",
+    starter: "Create one protected priority-load bus supplied by one verified source while monitoring other resources for later stages.",
+    existingRequires: ["A written priority-load order", "Knowledge of when each existing resource and load is available"],
+    reclaimedRequires: ["Independent safe devices", "No improvised source paralleling, transfer, or shared battery connection"],
+    starterRequires: ["One governed source and storage path", "Isolation, controls, protection, and a documented expansion boundary"],
+    existingLimit: "Coordination reduces waste and improves service timing but does not create new energy.",
+    reclaimedLimit: "Owning multiple devices does not make them electrically or mechanically compatible.",
+    carry: "Priority loads, monitoring, isolation, storage planning, and control objectives become the hybrid foundation.",
   },
 };
 
@@ -302,6 +428,91 @@ function buildResilience(project: ProjectModel, result: EngineResult): Resilienc
   }))];
 }
 
+function evaluateScale(project: ProjectModel, fraction: number) {
+  const scenario = FAMILY_SCENARIOS[project.familyId];
+  let scaled = project;
+  for (const control of scenario.controls) {
+    if (control.key === "criticalLoadKw" || control.key === "autonomyHours") continue;
+    const current = project.parameters[control.key] ?? control.min;
+    const target = control.min + Math.max(0, current - control.min) * fraction;
+    scaled = commitMutation(scaled, { type: "set-parameter", key: control.key, value: target });
+  }
+  return evaluateProject(scaled);
+}
+
+function buildAccessPath(project: ProjectModel, result: EngineResult): AccessTier[] {
+  const access = FAMILY_ACCESS[project.familyId];
+  const starterResult = evaluateScale(project, 0.25);
+  const stagedResult = evaluateScale(project, 0.65);
+  const reclaimedHigh = money(Math.min(250, Math.max(75, result.cost.accessible.low * 0.04)));
+  const starterLow = money(Math.max(50, result.cost.accessible.low * 0.06));
+  const starterHigh = money(Math.max(starterLow, result.cost.accessible.high * 0.18));
+  const stagedLow = money(Math.max(starterHigh, result.cost.accessible.low * 0.3));
+  const stagedHigh = money(Math.max(stagedLow, result.cost.accessible.high * 0.65));
+  return [
+    {
+      id: "existing",
+      label: "Use what already exists",
+      cost: { low: 0, high: 0 },
+      costLabel: "$0 new equipment",
+      service: access.existing,
+      modeledOutput: "No purchased generation modeled; the benefit is avoided demand or direct service.",
+      outputTruth: "unknown",
+      requires: access.existingRequires,
+      limitation: access.existingLimit,
+      carriesForward: access.carry,
+    },
+    {
+      id: "reclaimed",
+      label: "Reclaimed or assisted entry",
+      cost: { low: 0, high: reclaimedHigh },
+      costLabel: `$0â€“$${reclaimedHigh.toLocaleString("en-US")} out of pocket`,
+      service: access.reclaimed,
+      modeledOutput: "Output remains unknown until the reused equipment is identified, tested, and measured.",
+      outputTruth: "unknown",
+      requires: access.reclaimedRequires,
+      limitation: access.reclaimedLimit,
+      carriesForward: access.carry,
+    },
+    {
+      id: "starter",
+      label: "One-service starter",
+      cost: { low: starterLow, high: starterHigh },
+      costLabel: `$${starterLow.toLocaleString("en-US")}â€“$${starterHigh.toLocaleString("en-US")} planning range`,
+      service: access.starter,
+      modeledOutput: `${output(starterResult)} under the starter-scale governed inputs; ${starterResult.feasibility.toLowerCase()} against the current priority load.`,
+      outputTruth: "calculated",
+      requires: access.starterRequires,
+      limitation: `This scale is evaluated against the current ${result.targetMetric.value} ${result.targetMetric.unit} target and is not a whole-property promise.`,
+      carriesForward: access.carry,
+    },
+    {
+      id: "staged",
+      label: "Expandable staged system",
+      cost: { low: stagedLow, high: stagedHigh },
+      costLabel: `$${stagedLow.toLocaleString("en-US")}â€“$${stagedHigh.toLocaleString("en-US")} planning range`,
+      service: "Install a coherent portion of the governed architecture with protected interfaces sized so later capacity can be added deliberately.",
+      modeledOutput: `${output(stagedResult)} under the staged governed inputs; ${stagedResult.feasibility.toLowerCase()} against the current priority load.`,
+      outputTruth: "calculated",
+      requires: ["Verified site measurements", "A complete protection and isolation plan", "Compatible equipment with documented expansion limits"],
+      limitation: "Future expansion is only preserved when conductors, pipes, controls, foundations, storage interfaces, and permits account for it.",
+      carriesForward: "The measurement record, protected routes, controls, compatible equipment, and commissioning baseline become part of the complete system.",
+    },
+    {
+      id: "complete",
+      label: "Complete reference system",
+      cost: result.cost.accessible,
+      costLabel: `$${result.cost.accessible.low.toLocaleString("en-US")}â€“$${result.cost.accessible.high.toLocaleString("en-US")} accessible planning range`,
+      service: "Implement the complete source-to-load architecture represented by the current canonical EnergyCircle revision.",
+      modeledOutput: `${output(result)}; ${result.feasibility.toLowerCase()} against the current defined target.`,
+      outputTruth: result.productionMetric.truth,
+      requires: ["Resolved unknowns and exclusion criteria", "Current local quotes and equipment data", "Required permits, inspections, and professional review"],
+      limitation: "The modeled result remains a planning result until site measurements and selected equipment replace assumptions.",
+      carriesForward: "The complete revision becomes the commissioning baseline and maintenance record.",
+    },
+  ];
+}
+
 function buildFieldSequence(project: ProjectModel): FieldPhase[] {
   const notes = FAMILY_FIELD_NOTES[project.familyId];
   return [
@@ -338,6 +549,7 @@ export function deriveEngineeringPackage(project: ProjectModel, result = evaluat
     componentSchedule: buildSchedule(project),
     budget: buildBudget(project, result),
     resilience: buildResilience(project, result),
+    accessPath: buildAccessPath(project, result),
     fieldSequence: buildFieldSequence(project),
     record,
   };
