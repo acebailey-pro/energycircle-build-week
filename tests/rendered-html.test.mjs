@@ -45,17 +45,21 @@ test("server-renders the EnergyCircle reference experience", async () => {
   assert.match(html, /System verdict/);
   assert.match(html, />property<\/button>/i);
   assert.match(html, /What this system can do/);
+  assert.match(html, /The complete engineering package follows every change/);
+  assert.match(html, /Component schedule/);
+  assert.match(html, /Revision record/);
   assert.match(html, /What this result knows/);
   assert.doesNotMatch(html, /Your site is taking shape|react-loading-skeleton/);
 });
 
 test("meaningful controls are wired through the governed engine", async () => {
-  const [experience, engine] = await Promise.all([
+  const [experience, engine, engineeringPackage] = await Promise.all([
     readFile(
       new URL("../app/components/EnergyCircleExperience.tsx", import.meta.url),
       "utf8",
     ),
     readFile(new URL("../app/lib/family-engine.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/engineering-package.ts", import.meta.url), "utf8"),
   ]);
 
   assert.match(experience, /evaluateProject\(renderedProject\)/);
@@ -67,6 +71,9 @@ test("meaningful controls are wired through the governed engine", async () => {
   assert.match(engine, /truth: TruthState/);
   assert.match(engine, /CostEstimate/);
   assert.match(engine, /FAMILY_SCENARIOS/);
+  assert.match(experience, /deriveEngineeringPackage\(renderedProject, result\)/);
+  assert.match(engineeringPackage, /deriveEngineeringPackage/);
+  assert.match(engineeringPackage, /scenarioResult/);
 });
 
 test("the recovered product catalog is complete and truthfully staged", async () => {

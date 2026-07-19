@@ -24,6 +24,9 @@ representations through the same canonical-state model.
 6. Ask plain-language property questions and inspect the deterministic answer.
 7. Compare accessible and professionally installed cost envelopes, including
    their evidence basis, date, exclusions, and uncertainty.
+8. Continue into the governed **Engineering Package**: inspect the connected
+   component schedule, itemized planning budget, five-condition resilience
+   matrix, family-specific field sequence, and portable revision record.
 
 The initial reference scenario is intentionally **FRAGILE**: its modeled usable
 storage is 6.47 kWh against a defined 7.2 kWh autonomy target. One direct
@@ -46,6 +49,15 @@ merely reporting a score.
 - Explicit **assumed**, **calculated**, and **unknown** truth states
 - A governed failure path for every family
 - Evidence-backed or explicitly bounded cost estimates with freshness metadata
+- Itemized component and site-work budget allowances derived from each active
+  familyâ€™s current planning envelope
+- A connected component schedule with roles, dependencies, failure traces, and
+  maintenance checkpoints
+- Five deterministic resilience conditions evaluated without mutating the
+  canonical project revision
+- Six-stage, family-specific field sequences that distinguish planning from
+  construction and expose professional-review boundaries
+- Stable revision fingerprints and downloadable machine-readable project records
 - Plain-language property questions grounded in the active deterministic result
 - Keyboard-accessible component movement and reduced-motion support
 - Unit, server-render, and real-browser interaction tests

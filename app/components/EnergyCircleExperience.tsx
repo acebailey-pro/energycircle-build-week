@@ -32,8 +32,10 @@ import {
   type TruthValue,
 } from "../lib/energy-engine";
 import { DEFAULT_FAMILY, ENERGY_FAMILIES } from "../lib/architecture-catalog";
+import { deriveEngineeringPackage } from "../lib/engineering-package";
 
 type ViewMode = "property" | "system" | "blueprint";
+type PackageView = "components" | "budget" | "resilience" | "field" | "record";
 
 const formatValue = (metric: TruthValue) =>
   metric.value === null ? "Unknown" : `${String(metric.value)} ${metric.unit}`;
@@ -137,6 +139,7 @@ export function EnergyCircleExperience() {
   const [lastChanged, setLastChanged] = useState<ComponentId>("upperReservoir");
   const [promptFamily, setPromptFamily] = useState<LiveFamilyId | null>("gravity-storage");
   const [activeQuestion, setActiveQuestion] = useState(FAMILY_SCENARIOS["gravity-storage"].questions[0]);
+  const [packageView, setPackageView] = useState<PackageView>("components");
   const surfaceRef = useRef<HTMLDivElement>(null);
   const scenarioRef = useRef<HTMLElement>(null);
   const transactionRef = useRef<PreviewTransaction | null>(null);
@@ -144,6 +147,7 @@ export function EnergyCircleExperience() {
 
   const renderedProject = preview?.draft ?? project;
   const result = useMemo(() => evaluateProject(renderedProject), [renderedProject]);
+  const engineeringPackage = useMemo(() => deriveEngineeringPackage(renderedProject, result), [renderedProject, result]);
   const scenario = FAMILY_SCENARIOS[project.familyId];
   const selectedComponent = renderedProject.components[selected] ?? Object.values(renderedProject.components)[0];
   const focusedFamily = ENERGY_FAMILIES.find((family) => family.id === project.familyId) ?? DEFAULT_FAMILY;
@@ -276,6 +280,15 @@ export function EnergyCircleExperience() {
       ? "The path operates, but at least one defined threshold is not met."
       : "A modeled constraint prevents the path from serving its defined load.";
   const questionAnswer = answerFamilyQuestion(activeQuestion, result);
+  const downloadRecord = () => {
+    const blob = new Blob([JSON.stringify(engineeringPackage.record, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${project.familyId}-revision-${project.revision}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <main className={`experience experience--${viewMode} family--${project.familyId}`}>
@@ -424,6 +437,63 @@ export function EnergyCircleExperience() {
       <section className="system-chain" aria-label="Complete system architecture">
         <div><span className="eyebrow">Complete system</span><h2>Nothing exists as an isolated calculator.</h2></div>
         <div className="system-chain__path"><span>Source</span><i>→</i><span>Conversion</span><i>→</i><span>Storage</span><i>→</i><span>Distribution</span><i>→</i><span>Load</span><i>→</i><span>Recharge</span><i>→</i><span>Protection</span></div>
+      </section>
+
+      <section className="engineering-package" aria-labelledby="package-title">
+        <div className="engineering-package__heading">
+          <div><span className="eyebrow">From model to field</span><h2 id="package-title">The complete engineering package follows every change.</h2></div>
+          <div className="revision-seal"><span>Current record</span><strong>{engineeringPackage.fingerprint}</strong><small>Revision {engineeringPackage.revision}</small></div>
+        </div>
+        <p className="engineering-package__intro">The interactive property is the front door. This package carries the same governed revision into equipment, budget, resilience, execution, and a portable project record.</p>
+
+        <div className="package-tabs" role="tablist" aria-label="Engineering package views">
+          {([
+            ["components", "Component schedule"],
+            ["budget", "Budget"],
+            ["resilience", "Resilience"],
+            ["field", "Field sequence"],
+            ["record", "Revision record"],
+          ] as Array<[PackageView, string]>).map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={packageView === id} className={packageView === id ? "is-active" : ""} onClick={() => setPackageView(id)}>{label}</button>)}
+        </div>
+
+        <div className="package-panel" role="tabpanel">
+          {packageView === "components" && <>
+            <div className="package-panel__topline"><div><span className="eyebrow">Component schedule</span><h3>{engineeringPackage.componentSchedule.length} connected assemblies</h3></div><p>Roles, dependencies, failure modes, and maintenance checkpoints are derived from the active system graph.</p></div>
+            <div className="component-schedule">{engineeringPackage.componentSchedule.map((item) => <article key={item.id}>
+              <div><span className="schedule-mark">{renderedProject.components[item.id]?.mark}</span><span className="truth truth--assumed">{item.truth}</span></div>
+              <h4>{item.label}</h4><p>{item.role}</p>
+              <dl><div><dt>Connects to</dt><dd>{item.connectedTo.join(", ") || "No modeled connection"}</dd></div><div><dt>Failure trace</dt><dd>{item.failureMode}</dd></div><div><dt>Checkpoint</dt><dd>{item.checkpoint}</dd></div></dl>
+            </article>)}</div>
+          </>}
+
+          {packageView === "budget" && <>
+            <div className="package-panel__topline"><div><span className="eyebrow">Itemized planning budget</span><h3>See what the envelope contains.</h3></div><p>These are deterministic allocations of the current planning range, not vendor prices or quotes.</p></div>
+            <div className="budget-table" role="table" aria-label="System budget schedule">
+              <div className="budget-row budget-row--head" role="row"><span>Item</span><span>Qty.</span><span>Accessible</span><span>Installed</span></div>
+              {engineeringPackage.budget.map((line) => <div className="budget-row" role="row" key={line.id}><span><strong>{line.item}</strong><small>{line.basis}</small></span><span>{line.quantity} {line.unit}</span><span>{formatMoney(line.accessible.low)}â€“{formatMoney(line.accessible.high)}</span><span>{formatMoney(line.installed.low)}â€“{formatMoney(line.installed.high)}</span></div>)}
+              <div className="budget-row budget-row--total" role="row"><span><strong>Current planning envelope</strong><small>{result.cost.sourceLabel} Â· {result.cost.sourceYear}</small></span><span /><span>{formatMoney(result.cost.accessible.low)}â€“{formatMoney(result.cost.accessible.high)}</span><span>{formatMoney(result.cost.installed.low)}â€“{formatMoney(result.cost.installed.high)}</span></div>
+            </div>
+          </>}
+
+          {packageView === "resilience" && <>
+            <div className="package-panel__topline"><div><span className="eyebrow">Deterministic resilience matrix</span><h3>Five conditions. One governed evaluator.</h3></div><p>Each row temporarily changes one defined input, evaluates the result, and leaves the project revision untouched.</p></div>
+            <div className="resilience-matrix">{engineeringPackage.resilience.map((item) => <article key={item.id} className={`resilience-case resilience-case--${item.status.toLowerCase()}`}>
+              <div><span>{item.name}</span><strong>{item.status}</strong></div><p>{item.condition}</p><dl><div><dt>Useful output</dt><dd>{item.usefulOutput}</dd></div><div><dt>Consequence</dt><dd>{item.consequence}</dd></div></dl>
+            </article>)}</div>
+          </>}
+
+          {packageView === "field" && <>
+            <div className="package-panel__topline"><div><span className="eyebrow">Field sequence</span><h3>A decision path, not construction instructions.</h3></div><p>The sequence shows what must be learned, verified, tested, and maintained before this model can inform real work.</p></div>
+            <ol className="field-sequence">{engineeringPackage.fieldSequence.map((phase) => <li key={phase.number}><span>{phase.number}</span><div><h4>{phase.title}</h4><p>{phase.purpose}</p><ul>{phase.checks.map((check) => <li key={check}>{check}</li>)}</ul>{phase.boundary && <aside><strong>Professional boundary</strong>{phase.boundary}</aside>}</div></li>)}</ol>
+          </>}
+
+          {packageView === "record" && <>
+            <div className="package-panel__topline"><div><span className="eyebrow">Portable revision record</span><h3>{engineeringPackage.fingerprint}</h3></div><button className="record-download" type="button" onClick={downloadRecord}>Download current JSON</button></div>
+            <div className="record-grid"><article><span>Project truth</span><strong>{project.name}</strong><p>{engineeringPackage.generatedFrom}; {Object.keys(project.components).length} components and {scenario.routes.length} governed connections.</p></article><article><span>Invariant of execution</span><strong>{result.feasibility}</strong><p>{engineeringPackage.invariant}</p></article></div>
+            <div className="exclusions"><h4>Do not treat this revision as field-ready while:</h4><ul>{engineeringPackage.exclusionCriteria.map((criterion) => <li key={criterion}>{criterion}</li>)}</ul></div>
+            <details className="record-preview"><summary>Inspect machine-readable record</summary><pre>{JSON.stringify(engineeringPackage.record, null, 2)}</pre></details>
+          </>}
+        </div>
       </section>
 
       <section className="truth-strip" aria-label="Model truth states">
