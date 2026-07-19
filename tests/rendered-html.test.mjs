@@ -36,7 +36,8 @@ test("server-renders the EnergyCircle reference experience", async () => {
   assert.match(html, /Hillside Water Storage/);
   assert.match(html, /A worked example\. Your property comes next\./);
   assert.match(html, /System verdict/);
-  assert.match(html, /Energy balance/);
+  assert.match(html, />property<\/button>/i);
+  assert.match(html, /What this system can do/);
   assert.match(html, /What this result knows/);
   assert.doesNotMatch(html, /Your site is taking shape|react-loading-skeleton/);
 });

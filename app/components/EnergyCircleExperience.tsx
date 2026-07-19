@@ -26,7 +26,7 @@ import {
   type TruthValue,
 } from "../lib/energy-engine";
 
-type ViewMode = "system" | "site" | "blueprint";
+type ViewMode = "property" | "system" | "blueprint";
 
 const WATER_ROUTE: Array<[ComponentId, ComponentId]> = [
   ["lowerReservoir", "pump"],
@@ -107,12 +107,72 @@ function RouteLine({
   );
 }
 
+function PropertyObject({ id }: { id: ComponentId }) {
+  if (id === "solar") {
+    return (
+      <span className="physical-object physical-object--solar" aria-hidden="true">
+        <i /><i /><i /><i />
+        <b />
+      </span>
+    );
+  }
+  if (id === "upperReservoir") {
+    return (
+      <span className="physical-object physical-object--tank" aria-hidden="true">
+        <i className="tank__rim" />
+        <i className="tank__water" />
+        <i className="tank__body" />
+        <i className="tank__legs" />
+      </span>
+    );
+  }
+  if (id === "lowerReservoir") {
+    return (
+      <span className="physical-object physical-object--pond" aria-hidden="true">
+        <i /><i /><b />
+      </span>
+    );
+  }
+  if (id === "home") {
+    return (
+      <span className="physical-object physical-object--home" aria-hidden="true">
+        <i className="home__roof" />
+        <i className="home__wall" />
+        <i className="home__window" />
+        <i className="home__door" />
+        <b />
+      </span>
+    );
+  }
+  if (id === "inverter") {
+    return (
+      <span className="physical-object physical-object--inverter" aria-hidden="true">
+        <i />
+        <b>INV</b>
+      </span>
+    );
+  }
+  return (
+    <span
+      className={
+        "physical-object physical-object--machine physical-object--" + id
+      }
+      aria-hidden="true"
+    >
+      <i className="machine__house" />
+      <i className="machine__rotor" />
+      <i className="machine__hub" />
+      <b>{id === "pump" ? "PUMP" : "TURBINE"}</b>
+    </span>
+  );
+}
+
 export function EnergyCircleExperience() {
   const [project, setProject] = useState<ProjectModel>(referenceProject);
   const [preview, setPreview] = useState<PreviewTransaction | null>(null);
   const [selected, setSelected] =
     useState<ComponentId>("upperReservoir");
-  const [viewMode, setViewMode] = useState<ViewMode>("system");
+  const [viewMode, setViewMode] = useState<ViewMode>("property");
   const [insight, setInsight] = useState(
     "The 50 mm pipe consumes part of the available head. Move the upper reservoir to reveal how geometry changes the whole system.",
   );
@@ -324,7 +384,7 @@ export function EnergyCircleExperience() {
         <div className="workspace__main">
           <div className="viewbar" aria-label="Property representation">
             <div className="segmented">
-              {(["system", "site", "blueprint"] as ViewMode[]).map((mode) => (
+              {(["property", "system", "blueprint"] as ViewMode[]).map((mode) => (
                 <button
                   type="button"
                   key={mode}
@@ -332,13 +392,15 @@ export function EnergyCircleExperience() {
                   aria-pressed={viewMode === mode}
                   onClick={() => setViewMode(mode)}
                 >
-                  {mode === "site" ? "Site plan" : mode}
+                  {mode}
                 </button>
               ))}
             </div>
             <span className="viewbar__hint">
               <i aria-hidden="true" />
-              Drag a component to test the model
+              {viewMode === "property"
+                ? "Move anything you recognize"
+                : "Every view shares one project truth"}
             </span>
           </div>
 
@@ -347,6 +409,11 @@ export function EnergyCircleExperience() {
             <div className="property__contours" aria-hidden="true" />
             <div className="property__ridge property__ridge--back" aria-hidden="true" />
             <div className="property__ridge property__ridge--front" aria-hidden="true" />
+            <div className="property__sun" aria-hidden="true" />
+            <div className="property__road" aria-hidden="true" />
+            <div className="property__grove" aria-hidden="true">
+              <i /><i /><i /><i /><i />
+            </div>
             <div className="property__labels" aria-hidden="true">
               <span className="elevation elevation--high">≈ 51 m datum</span>
               <span className="elevation elevation--low">≈ 14 m datum</span>
@@ -403,8 +470,18 @@ export function EnergyCircleExperience() {
                   onKeyDown={(event) => moveWithKeyboard(event, component.id)}
                 >
                   <span className="component__halo" aria-hidden="true" />
+                  <PropertyObject id={component.id} />
                   <span className="component__mark">{MARKS[component.id]}</span>
                   <span className="component__label">{component.label}</span>
+                  {component.id === "upperReservoir" &&
+                    project.revision === 1 &&
+                    viewMode === "property" && (
+                      <span className="component__start" aria-hidden="true">
+                        <small>Start here</small>
+                        <strong>Drag the tank uphill</strong>
+                        <i>↑</i>
+                      </span>
+                    )}
                 </button>
               );
             })}
@@ -433,7 +510,11 @@ export function EnergyCircleExperience() {
             <div className="section-heading">
               <div>
                 <span className="eyebrow">Live model</span>
-                <h2>Energy balance</h2>
+                <h2>
+                  {viewMode === "property"
+                    ? "What this system can do"
+                    : "Energy balance"}
+                </h2>
               </div>
               {preview && <span className="preview-badge">Preview</span>}
             </div>

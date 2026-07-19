@@ -64,6 +64,15 @@ test(
       await page.goto(baseUrl, { waitUntil: "networkidle" });
 
       assert.equal(
+        await page.locator(".property").getAttribute("data-view"),
+        "property",
+      );
+      assert.equal(await page.locator(".physical-object--tank").count(), 1);
+      assert.match(
+        (await page.locator(".component__start").textContent()) ?? "",
+        /Drag the tank uphill/i,
+      );
+      assert.equal(
         await page.locator(".verdict strong").textContent(),
         "FRAGILE",
       );
@@ -110,7 +119,10 @@ test(
         await page.locator(".warning--clear").count(),
         1,
       );
+      assert.equal(await page.locator(".component__start").count(), 0);
 
+      await page.getByRole("button", { name: "system" }).click();
+      assert.equal(await property.getAttribute("data-view"), "system");
       await page.getByRole("button", { name: "blueprint" }).click();
       assert.equal(await property.getAttribute("data-view"), "blueprint");
 
