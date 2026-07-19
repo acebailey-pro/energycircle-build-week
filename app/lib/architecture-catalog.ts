@@ -17,7 +17,7 @@ export interface EnergyFamily {
   purpose: string;
   pathway: string;
   glyph: string;
-  demonstration: "live" | "catalogued";
+  demonstration: "live";
 }
 
 /**
@@ -44,7 +44,7 @@ export const ENERGY_FAMILIES: readonly EnergyFamily[] = [
     purpose: "Direct heat",
     pathway: "Sun → heat collector → thermal storage → heat loads",
     glyph: "HEAT",
-    demonstration: "catalogued",
+    demonstration: "live",
   },
   {
     id: "wind",
@@ -54,7 +54,7 @@ export const ENERGY_FAMILIES: readonly EnergyFamily[] = [
     purpose: "Generation or water lifting",
     pathway: "Wind → rotation → generator or lift → useful work",
     glyph: "WIND",
-    demonstration: "catalogued",
+    demonstration: "live",
   },
   {
     id: "flow-power",
@@ -64,7 +64,7 @@ export const ENERGY_FAMILIES: readonly EnergyFamily[] = [
     purpose: "Continuous generation or recovery",
     pathway: "Flow or pressure → turbine → generation → loads",
     glyph: "FLOW",
-    demonstration: "catalogued",
+    demonstration: "live",
   },
   {
     id: "bioenergy",
@@ -74,7 +74,7 @@ export const ENERGY_FAMILIES: readonly EnergyFamily[] = [
     purpose: "Heat, gas, or generation",
     pathway: "Feedstock → conversion → gas or heat → loads",
     glyph: "BIO",
-    demonstration: "catalogued",
+    demonstration: "live",
   },
   {
     id: "thermal-recovery",
@@ -84,7 +84,7 @@ export const ENERGY_FAMILIES: readonly EnergyFamily[] = [
     purpose: "Load reduction and heat reuse",
     pathway: "Waste heat → exchanger → thermal buffer → heat loads",
     glyph: "LOOP",
-    demonstration: "catalogued",
+    demonstration: "live",
   },
   {
     id: "mechanical-human",
@@ -94,7 +94,7 @@ export const ENERGY_FAMILIES: readonly EnergyFamily[] = [
     purpose: "Emergency generation or direct work",
     pathway: "Motion → mechanical coupling → generator or load",
     glyph: "MOVE",
-    demonstration: "catalogued",
+    demonstration: "live",
   },
   {
     id: "gravity-storage",
@@ -114,7 +114,7 @@ export const ENERGY_FAMILIES: readonly EnergyFamily[] = [
     purpose: "Resilient combined supply",
     pathway: "Sources → governed conversion and storage → priority loads",
     glyph: "MIX",
-    demonstration: "catalogued",
+    demonstration: "live",
   },
 ] as const;
 

@@ -35,13 +35,13 @@ test("server-renders the EnergyCircle reference experience", async () => {
   );
   assert.match(html, /Hillside Water Storage/);
   assert.match(html, /Start with what your property already has\./);
-  assert.match(html, /Nine pathways, not one prescribed system/);
+  assert.match(html, /Nine systems\. One property truth\./);
   assert.match(html, /Solar PV/);
   assert.match(html, /Gravity storage/);
   assert.match(html, />Hybrid</);
-  assert.match(html, /Active model/);
-  assert.match(html, /Open model/);
-  assert.match(html, /Catalogued/);
+  assert.match(html, /Active system/);
+  assert.match(html, /Open system/);
+  assert.doesNotMatch(html, /Catalogued/);
   assert.match(html, /System verdict/);
   assert.match(html, />property<\/button>/i);
   assert.match(html, /What this system can do/);
@@ -55,7 +55,7 @@ test("meaningful controls are wired through the governed engine", async () => {
       new URL("../app/components/EnergyCircleExperience.tsx", import.meta.url),
       "utf8",
     ),
-    readFile(new URL("../app/lib/energy-engine.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/family-engine.ts", import.meta.url), "utf8"),
   ]);
 
   assert.match(experience, /evaluateProject\(renderedProject\)/);
@@ -63,8 +63,10 @@ test("meaningful controls are wired through the governed engine", async () => {
   assert.match(experience, /commitPreview\(transaction\)/);
   assert.match(experience, /deriveCausalInsight/);
   assert.match(experience, /role="switch"/);
-  assert.match(engine, /projectRevision: project\.revision/);
+  assert.match(engine, /projectRevision: p\.revision/);
   assert.match(engine, /truth: TruthState/);
+  assert.match(engine, /CostEstimate/);
+  assert.match(engine, /FAMILY_SCENARIOS/);
 });
 
 test("the recovered product catalog is complete and truthfully staged", async () => {
@@ -86,6 +88,6 @@ test("the recovered product catalog is complete and truthfully staged", async ()
   ];
 
   for (const id of ids) assert.match(catalog, new RegExp(`id: "${id}"`));
-  assert.equal((catalog.match(/demonstration: "live",/g) ?? []).length, 2);
-  assert.equal((catalog.match(/demonstration: "catalogued",/g) ?? []).length, 7);
+  assert.equal((catalog.match(/demonstration: "live",/g) ?? []).length, 9);
+  assert.equal((catalog.match(/demonstration: "catalogued",/g) ?? []).length, 0);
 });

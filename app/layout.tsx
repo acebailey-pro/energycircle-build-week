@@ -5,7 +5,7 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://energycircle-build-week.ace0048.chatgpt.site"),
   title: "EnergyCircle | Interactive Property Energy Model",
   description:
-    "Explore governed property-scale solar, battery, water, gravity storage, and critical-load tradeoffs in one interactive planning environment.",
+    "Explore, calculate, price, and combine nine governed property-energy systems in one interactive planning environment.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",

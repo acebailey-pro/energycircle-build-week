@@ -4,26 +4,26 @@
 
 EnergyCircle is an interactive planning environment for understanding how a
 property-scale energy system behaves as one connected whole. Its Build Week
-release includes two governed reference scenarios: a hillside pumped-water
-storage system and a solar-plus-battery home. Seven further original system
-families remain explicitly catalogued product directions, not simulated models.
+release includes governed interactive reference systems for all nine original
+EnergyCircle families. Each family connects property resources, components,
+calculations, storage, loads, failures, cost evidence, questions, and synchronized
+representations through the same canonical-state model.
 
 ![EnergyCircle hillside energy system](public/energycircle-social.png)
 
 ## The judging path
 
-1. Open the **Hillside Water Storage** reference scenario.
-2. Drag the upper reservoir uphill.
-3. Watch geometry, pipe routing, head, hydraulic loss, stored energy, runtime,
+1. Select any of the nine energy families and open its complete system.
+2. Move the highlighted component or edit a family-specific system variable.
+3. Watch geometry, routing, resource quality, losses, useful output, runtime,
    warnings, system verdict, and the causal explanation update together.
 4. Switch between **Property**, **System**, and **Blueprint** to see the same
    project revision represented three ways.
-5. Toggle **Intake obstruction** to trace a deterministic failure through the
-   water path and into the energy verdict.
-6. Open **Solar PV**, move its array out of modeled shade, and watch harvest,
-   battery coverage, warnings, and feasibility update from the same revision.
-7. Toggle **Inverter outage** to trace its deterministic effect through the
-   solar power path.
+5. Toggle the active family’s failure condition and trace it through every route,
+   calculation, warning, and verdict.
+6. Ask plain-language property questions and inspect the deterministic answer.
+7. Compare accessible and professionally installed cost envelopes, including
+   their evidence basis, date, exclusions, and uncertainty.
 
 The initial reference scenario is intentionally **FRAGILE**: its modeled usable
 storage is 6.47 kWh against a defined 7.2 kWh autonomy target. One direct
@@ -34,13 +34,19 @@ merely reporting a score.
 
 - Direct manipulation of every property component
 - Governed preview transactions with one revision committed at interaction end
-- Deterministic hydraulic, solar-harvest, storage, and energy calculations
+- Nine first-class interactive systems: solar PV, solar thermal, wind, water
+  and pressure, bioenergy, thermal recovery, mechanical and human power,
+  gravity storage, and coordinated hybrids
+- Deterministic hydraulic, electrical, thermal, wind, biogas, mechanical,
+  storage, and combined-system calculations
 - Darcy-Weisbach pipe-loss modeling for the reference system
 - Live head, loss, storage, runtime, warning, and feasibility outputs
 - Property, system, and blueprint views derived from one canonical state
 - Causal insights that explain consequences without making unsupported decisions
 - Explicit **assumed**, **calculated**, and **unknown** truth states
-- Deterministic intake-obstruction and inverter-outage failure propagation
+- A governed failure path for every family
+- Evidence-backed or explicitly bounded cost estimates with freshness metadata
+- Plain-language property questions grounded in the active deterministic result
 - Keyboard-accessible component movement and reduced-motion support
 - Unit, server-render, and real-browser interaction tests
 

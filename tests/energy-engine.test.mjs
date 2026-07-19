@@ -6,10 +6,13 @@ import {
   commitPreview,
   commitMutation,
   evaluateProject,
+  createReferenceProject,
+  FAMILY_SCENARIOS,
   referenceProject,
   solarReferenceProject,
   updatePreview,
 } from "../app/lib/energy-engine.ts";
+import { ENERGY_FAMILIES } from "../app/lib/architecture-catalog.ts";
 
 test("the reference scenario begins fragile and exposes the storage constraint", () => {
   const result = evaluateProject(referenceProject);
@@ -129,4 +132,56 @@ test("family-specific mutations cannot alter the wrong project model", () => {
   });
 
   assert.equal(unchanged, solarReferenceProject);
+});
+
+test("all nine families are governed, interactive, priced system models", () => {
+  const destinations = {
+    "solar-pv": { x: 40, y: 20 },
+    "solar-thermal": { x: 42, y: 18 },
+    wind: { x: 52, y: 18 },
+    "flow-power": { x: 26, y: 14 },
+    bioenergy: { x: 41, y: 61 },
+    "thermal-recovery": { x: 23, y: 65 },
+    "mechanical-human": { x: 46, y: 60 },
+    "gravity-storage": { x: 27, y: 18 },
+    "coordinated-hybrid": { x: 80, y: 42 },
+  };
+
+  assert.equal(ENERGY_FAMILIES.length, 9);
+  for (const family of ENERGY_FAMILIES) {
+    const model = createReferenceProject(family.id);
+    const scenario = FAMILY_SCENARIOS[family.id];
+    const before = evaluateProject(model);
+    const changed = commitMutation(model, {
+      type: "move-component",
+      id: scenario.initialComponent,
+      position: destinations[family.id],
+    });
+    const after = evaluateProject(changed);
+
+    assert.ok(Object.keys(model.components).length >= 4, family.id);
+    assert.ok(scenario.controls.length >= 3, family.id);
+    assert.ok(scenario.routes.length >= 3, family.id);
+    assert.equal(changed.revision, model.revision + 1, family.id);
+    assert.equal(after.projectRevision, changed.revision, family.id);
+    assert.ok(before.cost.accessible.low > 0, family.id);
+    assert.ok(before.cost.installed.high > before.cost.accessible.low, family.id);
+    assert.equal(before.cost.truth, "estimated", family.id);
+    assert.ok(before.nextMeasurement.length > 20, family.id);
+  }
+});
+
+test("every family propagates its defined failure through useful output", () => {
+  for (const family of ENERGY_FAMILIES) {
+    const model = createReferenceProject(family.id);
+    const failed = commitMutation(model, {
+      type: "set-active-failure",
+      active: true,
+    });
+    const result = evaluateProject(failed);
+
+    assert.equal(result.productionMetric.value, 0, family.id);
+    assert.equal(result.feasibility, "INFEASIBLE", family.id);
+    assert.ok(result.warnings.some((warning) => warning.severity === "critical"), family.id);
+  }
 });
