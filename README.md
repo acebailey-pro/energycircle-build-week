@@ -2,6 +2,8 @@
 
 **Property energy systems, made legible.**
 
+**Live judge demo:** https://energycircle-build-week.ace0048.chatgpt.site/
+
 EnergyCircle is an interactive planning environment for understanding how a
 property-scale energy system behaves as one connected whole. Its Build Week
 release includes governed interactive reference systems for all nine original
@@ -12,6 +14,10 @@ representations through the same canonical-state model.
 ![EnergyCircle hillside energy system](public/energycircle-social.png)
 
 ## The judging path
+
+Before selecting a system, set the property objective, starting budget, and
+available or possible resources. EnergyCircle compares all nine families with a
+visible reason and next measurement; the comparison explains but does not choose.
 
 1. Select any of the nine energy families and open its complete system.
 2. Move the highlighted component or edit a family-specific system variable.
@@ -38,9 +44,30 @@ storage is 6.47 kWh against a defined 7.2 kWh autonomy target. One direct
 manipulation can cross that threshold, making the reason visible rather than
 merely reporting a score.
 
+### 90-second judge path
+
+1. Open **Gravity storage** and drag the upper reservoir uphill.
+2. Watch head, losses, stored energy, runtime, warnings, verdict, and the causal
+   explanation update from one governed state transition.
+3. Open **Solar PV**, **Wind**, or **Hybrid** to confirm that each family has its
+   own components, variables, calculations, failure condition, and cost range.
+4. Open **$0 to complete** to compare no-new-equipment, reclaimed or assisted,
+   starter, staged, and complete paths.
+5. Open **Resilience**, then **Field sequence**.
+6. Select a component and replace **Standard new** with **Verified reclaimed**
+   or **High-duty / serviceable**; performance, cost, assembly, and export follow.
+7. Open **Exploded assemblies** and **Cost of inaction**.
+8. Select **Print / save PDF** to generate the detailed pre-build field package,
+   or open **Revision record** to download the canonical JSON record.
+
+No account, credentials, or sample-data upload is required.
+
 ## What is implemented
 
 - Direct manipulation of every property component
+- Structured property and objective intake with governed budget and resource states
+- Deterministic comparison of all nine architecture families, including the
+  reason, first measurement, reference verdict, and an explicit non-decision boundary
 - Governed preview transactions with one revision committed at interaction end
 - Nine first-class interactive systems: solar PV, solar thermal, wind, water
   and pressure, bioenergy, thermal recovery, mechanical and human power,
@@ -63,12 +90,21 @@ merely reporting a score.
 - Six-stage, family-specific field sequences that distinguish planning from
   construction and expose professional-review boundaries
 - Stable revision fingerprints and downloadable machine-readable project records
+- Governed component replacement with visible performance, storage, cost,
+  service-life, evidence, and safety effects
+- Exploded assemblies for every modeled component, including parts, interfaces,
+  inspection gates, failure effects, assembly order, service access, and isolation
+- User-editable cost-of-inaction scenarios with operating cost, disruption
+  exposure, escalation, time horizons, unpriced effects, and non-decision framing
 - Five-stage access paths for all nine families, including an explicit $0 entry,
   deterministic starter and staged output, preserved-investment guidance, and
   honest capability boundaries
-- A print-quality, ten-page pre-build field package covering decision summary,
-  access, inputs, truth states, architecture, connections, component schedule,
-  budget, procurement, resilience, field sequence, exclusions, and sign-off
+- A print-quality, multi-page pre-build field package that expands with the
+  active component count and covers decision summary, access, inputs, truth
+  states, property brief, nine-family comparison, architecture, connections,
+  every exploded assembly, budget,
+  cost-of-inaction, procurement, resilience, field sequence, exclusions, and
+  sign-off
 - Plain-language property questions grounded in the active deterministic result
 - Keyboard-accessible component movement and reduced-motion support
 - Unit, server-render, and real-browser interaction tests
