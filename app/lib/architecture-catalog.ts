@@ -34,7 +34,7 @@ export const ENERGY_FAMILIES: readonly EnergyFamily[] = [
     purpose: "Electric generation",
     pathway: "Sun → DC generation → electrical storage → loads",
     glyph: "SUN",
-    demonstration: "catalogued",
+    demonstration: "live",
   },
   {
     id: "solar-thermal",
@@ -118,6 +118,6 @@ export const ENERGY_FAMILIES: readonly EnergyFamily[] = [
   },
 ] as const;
 
-export const LIVE_FAMILY = ENERGY_FAMILIES.find(
-  (family) => family.demonstration === "live",
+export const DEFAULT_FAMILY = ENERGY_FAMILIES.find(
+  (family) => family.id === "gravity-storage",
 )!;

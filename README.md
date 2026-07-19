@@ -4,9 +4,9 @@
 
 EnergyCircle is an interactive planning environment for understanding how a
 property-scale energy system behaves as one connected whole. Its Build Week
-reference scenario models a hillside pumped-water storage system connecting
-solar generation, reservoirs, a pump, hydraulic routing, a micro turbine, an
-inverter, and critical household loads.
+release includes two governed reference scenarios: a hillside pumped-water
+storage system and a solar-plus-battery home. Seven further original system
+families remain explicitly catalogued product directions, not simulated models.
 
 ![EnergyCircle hillside energy system](public/energycircle-social.png)
 
@@ -20,6 +20,10 @@ inverter, and critical household loads.
    project revision represented three ways.
 5. Toggle **Intake obstruction** to trace a deterministic failure through the
    water path and into the energy verdict.
+6. Open **Solar PV**, move its array out of modeled shade, and watch harvest,
+   battery coverage, warnings, and feasibility update from the same revision.
+7. Toggle **Inverter outage** to trace its deterministic effect through the
+   solar power path.
 
 The initial reference scenario is intentionally **FRAGILE**: its modeled usable
 storage is 6.47 kWh against a defined 7.2 kWh autonomy target. One direct
@@ -30,13 +34,13 @@ merely reporting a score.
 
 - Direct manipulation of every property component
 - Governed preview transactions with one revision committed at interaction end
-- A deterministic hydraulic and energy calculation engine
+- Deterministic hydraulic, solar-harvest, storage, and energy calculations
 - Darcy-Weisbach pipe-loss modeling for the reference system
 - Live head, loss, storage, runtime, warning, and feasibility outputs
 - Property, system, and blueprint views derived from one canonical state
 - Causal insights that explain consequences without making unsupported decisions
 - Explicit **assumed**, **calculated**, and **unknown** truth states
-- Deterministic intake-obstruction failure propagation
+- Deterministic intake-obstruction and inverter-outage failure propagation
 - Keyboard-accessible component movement and reduced-motion support
 - Unit, server-render, and real-browser interaction tests
 

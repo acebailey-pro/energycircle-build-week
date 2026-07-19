@@ -14,37 +14,92 @@ import {
   beginPreview,
   commitMutation,
   commitPreview,
+  createReferenceProject,
   deriveCausalInsight,
   evaluateProject,
   referenceProject,
   updatePreview,
   type ComponentId,
   type DomainMutation,
+  type LiveFamilyId,
   type Point,
   type PreviewTransaction,
   type ProjectModel,
   type TruthValue,
 } from "../lib/energy-engine";
 import {
+  DEFAULT_FAMILY,
   ENERGY_FAMILIES,
-  LIVE_FAMILY,
   type EnergyFamilyId,
 } from "../lib/architecture-catalog";
 
 type ViewMode = "property" | "system" | "blueprint";
 
-const WATER_ROUTE: Array<[ComponentId, ComponentId]> = [
-  ["lowerReservoir", "pump"],
-  ["pump", "upperReservoir"],
-  ["upperReservoir", "turbine"],
-  ["turbine", "lowerReservoir"],
-];
+const ROUTES: Record<
+  LiveFamilyId,
+  {
+    water: Array<[ComponentId, ComponentId]>;
+    power: Array<[ComponentId, ComponentId]>;
+  }
+> = {
+  "gravity-storage": {
+    water: [
+      ["lowerReservoir", "pump"],
+      ["pump", "upperReservoir"],
+      ["upperReservoir", "turbine"],
+      ["turbine", "lowerReservoir"],
+    ],
+    power: [
+      ["solar", "pump"],
+      ["turbine", "inverter"],
+      ["inverter", "home"],
+    ],
+  },
+  "solar-pv": {
+    water: [],
+    power: [
+      ["solar", "inverter"],
+      ["inverter", "battery"],
+      ["battery", "home"],
+    ],
+  },
+};
 
-const POWER_ROUTE: Array<[ComponentId, ComponentId]> = [
-  ["solar", "pump"],
-  ["turbine", "inverter"],
-  ["inverter", "home"],
-];
+const SCENARIOS: Record<
+  LiveFamilyId,
+  {
+    number: string;
+    title: string;
+    description: string;
+    initialComponent: ComponentId;
+    initialInsight: string;
+    startPrompt: string;
+  }
+> = {
+  "gravity-storage": {
+    number: "01",
+    title: "Hillside Water Storage",
+    description:
+      "Move a recognizable component. Geometry, routing, losses, stored energy, runtime, warnings, and every representation respond together.",
+    initialComponent: "upperReservoir",
+    initialInsight:
+      "The 50 mm pipe consumes part of the available head. Move the upper reservoir to reveal how geometry changes the whole system.",
+    startPrompt: "Drag the tank uphill",
+  },
+  "solar-pv": {
+    number: "02",
+    title: "Solar + Battery Home",
+    description:
+      "Move the array out of the modeled shade zone. Solar access, harvest, storage coverage, warnings, and every representation respond together.",
+    initialComponent: "solar",
+    initialInsight:
+      "Modeled tree and terrain obstruction reduce the array's solar access. Move the panels into a clearer exposure zone.",
+    startPrompt: "Drag the array into sun",
+  },
+};
+
+const isLiveFamily = (id: EnergyFamilyId): id is LiveFamilyId =>
+  id === "gravity-storage" || id === "solar-pv";
 
 const MARKS: Record<ComponentId, string> = {
   solar: "SUN",
@@ -52,6 +107,7 @@ const MARKS: Record<ComponentId, string> = {
   upperReservoir: "H₂O",
   turbine: "T",
   inverter: "INV",
+  battery: "BAT",
   home: "LOAD",
   lowerReservoir: "H₂O",
 };
@@ -92,17 +148,17 @@ function RouteLine({
   const length = Math.hypot(to.x - from.x, scaledY);
   const angle = Math.atan2(scaledY, to.x - from.x) * (180 / Math.PI);
   const style: CSSProperties = {
-    left: String(from.x) + "%",
-    top: String(from.y) + "%",
-    width: String(length) + "%",
-    transform: "rotate(" + String(angle) + "deg)",
+    left: from.x.toFixed(4) + "%",
+    top: from.y.toFixed(4) + "%",
+    width: length.toFixed(4) + "%",
+    transform: "rotate(" + angle.toFixed(4) + "deg)",
   };
   return (
     <div
       className={
         "route route--" +
         kind +
-        (blocked && kind === "water" ? " route--blocked" : "")
+        (blocked ? " route--blocked" : "")
       }
       style={style}
       aria-hidden="true"
@@ -157,6 +213,15 @@ function PropertyObject({ id }: { id: ComponentId }) {
       </span>
     );
   }
+  if (id === "battery") {
+    return (
+      <span className="physical-object physical-object--battery" aria-hidden="true">
+        <i className="battery__charge" />
+        <i className="battery__terminal" />
+        <b>BATTERY</b>
+      </span>
+    );
+  }
   return (
     <span
       className={
@@ -179,13 +244,16 @@ export function EnergyCircleExperience() {
     useState<ComponentId>("upperReservoir");
   const [viewMode, setViewMode] = useState<ViewMode>("property");
   const [catalogFocus, setCatalogFocus] =
-    useState<EnergyFamilyId>(LIVE_FAMILY.id);
+    useState<EnergyFamilyId>(DEFAULT_FAMILY.id);
   const [insight, setInsight] = useState(
-    "The 50 mm pipe consumes part of the available head. Move the upper reservoir to reveal how geometry changes the whole system.",
+    SCENARIOS["gravity-storage"].initialInsight,
   );
   const [lastChanged, setLastChanged] =
     useState<ComponentId>("upperReservoir");
+  const [promptFamily, setPromptFamily] =
+    useState<LiveFamilyId | null>("gravity-storage");
   const surfaceRef = useRef<HTMLDivElement>(null);
+  const scenarioRef = useRef<HTMLElement>(null);
   const transactionRef = useRef<PreviewTransaction | null>(null);
   const dragOffsetRef = useRef<Point>({ x: 0, y: 0 });
 
@@ -194,6 +262,11 @@ export function EnergyCircleExperience() {
     () => evaluateProject(renderedProject),
     [renderedProject],
   );
+  const scenario = SCENARIOS[project.familyId];
+  const routes = ROUTES[project.familyId];
+  const selectedComponent =
+    renderedProject.components[selected] ??
+    Object.values(renderedProject.components).find(Boolean);
 
   const commit = useCallback(
     (mutation: DomainMutation, changed?: ComponentId) => {
@@ -207,6 +280,26 @@ export function EnergyCircleExperience() {
     },
     [],
   );
+
+  const activateFamily = (familyId: LiveFamilyId) => {
+    setCatalogFocus(familyId);
+    if (familyId === project.familyId) {
+      scenarioRef.current?.scrollIntoView({ behavior: "auto", block: "start" });
+      return;
+    }
+    const nextScenario = SCENARIOS[familyId];
+    setProject(createReferenceProject(familyId, project.revision + 1));
+    setSelected(nextScenario.initialComponent);
+    setLastChanged(nextScenario.initialComponent);
+    setPromptFamily(familyId);
+    setInsight(nextScenario.initialInsight);
+    setPreview(null);
+    transactionRef.current = null;
+    setViewMode("property");
+    requestAnimationFrame(() =>
+      scenarioRef.current?.scrollIntoView({ behavior: "auto", block: "start" }),
+    );
+  };
 
   const pointFromPointer = (event: PointerEvent<HTMLButtonElement>): Point => {
     const bounds = surfaceRef.current?.getBoundingClientRect();
@@ -224,7 +317,8 @@ export function EnergyCircleExperience() {
     event.currentTarget.setPointerCapture(event.pointerId);
     setSelected(id);
     const pointer = pointFromPointer(event);
-    const current = project.components[id].position;
+    const current = project.components[id]?.position;
+    if (!current) return;
     dragOffsetRef.current = {
       x: current.x - pointer.x,
       y: current.y - pointer.y,
@@ -276,6 +370,12 @@ export function EnergyCircleExperience() {
     );
     if (transaction.mutation.type === "move-component") {
       setLastChanged(transaction.mutation.id);
+      if (
+        transaction.mutation.id ===
+        SCENARIOS[transaction.base.familyId].initialComponent
+      ) {
+        setPromptFamily(null);
+      }
     }
     transactionRef.current = null;
     setPreview(null);
@@ -319,7 +419,8 @@ export function EnergyCircleExperience() {
     const delta = directions[event.key];
     if (!delta) return;
     event.preventDefault();
-    const current = project.components[id].position;
+    const current = project.components[id]?.position;
+    if (!current) return;
     commit(
       {
         type: "move-component",
@@ -328,6 +429,7 @@ export function EnergyCircleExperience() {
       },
       id,
     );
+    if (id === scenario.initialComponent) setPromptFamily(null);
   };
 
   const statusDescription =
@@ -337,10 +439,18 @@ export function EnergyCircleExperience() {
         ? "The system operates, but at least one defined threshold is not met."
         : "A modeled constraint prevents the system from serving its critical load.";
   const focusedFamily =
-    ENERGY_FAMILIES.find((family) => family.id === catalogFocus) ?? LIVE_FAMILY;
+    ENERGY_FAMILIES.find((family) => family.id === catalogFocus) ?? DEFAULT_FAMILY;
+  const failureActive =
+    project.familyId === "gravity-storage"
+      ? renderedProject.failures.intakeBlocked
+      : renderedProject.failures.inverterOffline;
 
   return (
-    <main className={"experience experience--" + viewMode}>
+    <main
+      className={
+        "experience experience--" + viewMode + " family--" + project.familyId
+      }
+    >
       <header className="topbar">
         <a className="brand" href="#families" aria-label="EnergyCircle home">
           <span className="brand__orbit" aria-hidden="true"><i /></span>
@@ -355,15 +465,16 @@ export function EnergyCircleExperience() {
           className="quiet-button"
           type="button"
           onClick={() => {
-            setProject((current) => ({
-              ...referenceProject,
-              revision: current.revision + 1,
-            }));
+            const currentScenario = SCENARIOS[project.familyId];
+            setProject((current) =>
+              createReferenceProject(current.familyId, current.revision + 1),
+            );
+            setSelected(currentScenario.initialComponent);
+            setLastChanged(currentScenario.initialComponent);
+            setPromptFamily(project.familyId);
             setPreview(null);
             transactionRef.current = null;
-            setInsight(
-              "Reference geometry restored. Move the upper reservoir to reveal how the system responds.",
-            );
+            setInsight(currentScenario.initialInsight);
           }}
         >
           Reset scenario
@@ -384,8 +495,10 @@ export function EnergyCircleExperience() {
           <div className="family-focus__topline">
             <span>{focusedFamily.glyph}</span>
             <small>
-              {focusedFamily.demonstration === "live"
-                ? "Live governed model"
+              {focusedFamily.id === project.familyId
+                ? "Active governed model"
+                : focusedFamily.demonstration === "live"
+                  ? "Live governed model"
                 : "Product family"}
             </small>
           </div>
@@ -405,8 +518,8 @@ export function EnergyCircleExperience() {
             <h2 id="family-atlas-title">Nine pathways, not one prescribed system</h2>
           </div>
           <p>
-            Browse the original EnergyCircle family catalog. The gravity-storage
-            family is the live, fully governed Build Week reference below.
+            Browse the original EnergyCircle family catalog. Solar PV and gravity
+            storage now open fully governed interactive reference models.
           </p>
         </div>
         <div className="family-atlas__grid">
@@ -417,10 +530,15 @@ export function EnergyCircleExperience() {
               className={
                 "family-card" +
                 (catalogFocus === family.id ? " is-focused" : "") +
-                (family.demonstration === "live" ? " is-live" : "")
+                (family.demonstration === "live" ? " is-live" : "") +
+                (project.familyId === family.id ? " is-active-model" : "")
               }
               aria-pressed={catalogFocus === family.id}
-              onClick={() => setCatalogFocus(family.id)}
+              onClick={() =>
+                isLiveFamily(family.id)
+                  ? activateFamily(family.id)
+                  : setCatalogFocus(family.id)
+              }
             >
               <span className="family-card__glyph" aria-hidden="true">
                 {family.glyph}
@@ -430,21 +548,24 @@ export function EnergyCircleExperience() {
                 <small>{family.source}</small>
               </span>
               <span className="family-card__state">
-                {family.demonstration === "live" ? "Live model" : "Catalogued"}
+                {project.familyId === family.id
+                  ? "Active model"
+                  : family.demonstration === "live"
+                    ? "Open model"
+                    : "Catalogued"}
               </span>
             </button>
           ))}
         </div>
       </section>
 
-      <section className="scenario-intro" id="scenario">
+      <section className="scenario-intro" id="scenario" ref={scenarioRef}>
         <div>
-          <span className="eyebrow">Interactive reference scenario 01</span>
-          <h2>Hillside Water Storage</h2>
-          <p>
-            Move a recognizable component. Geometry, routing, losses, stored
-            energy, runtime, warnings, and every representation respond together.
-          </p>
+          <span className="eyebrow">
+            Interactive reference scenario {scenario.number}
+          </span>
+          <h2>{scenario.title}</h2>
+          <p>{scenario.description}</p>
         </div>
         <div
           className={"verdict verdict--" + result.feasibility.toLowerCase()}
@@ -487,33 +608,58 @@ export function EnergyCircleExperience() {
             <div className="property__ridge property__ridge--front" aria-hidden="true" />
             <div className="property__sun" aria-hidden="true" />
             <div className="property__road" aria-hidden="true" />
+            {project.familyId === "solar-pv" && (
+              <div className="property__shade-zone" aria-hidden="true">
+                Modeled shade zone
+              </div>
+            )}
             <div className="property__grove" aria-hidden="true">
               <i /><i /><i /><i /><i />
             </div>
             <div className="property__labels" aria-hidden="true">
-              <span className="elevation elevation--high">≈ 51 m datum</span>
-              <span className="elevation elevation--low">≈ 14 m datum</span>
+              {project.familyId === "gravity-storage" ? (
+                <>
+                  <span className="elevation elevation--high">≈ 51 m datum</span>
+                  <span className="elevation elevation--low">≈ 14 m datum</span>
+                </>
+              ) : (
+                <>
+                  <span className="elevation elevation--high">Clear exposure</span>
+                  <span className="elevation elevation--low">Tree obstruction</span>
+                </>
+              )}
             </div>
 
-            {WATER_ROUTE.map(([from, to]) => (
-              <RouteLine
-                key={from + to}
-                from={renderedProject.components[from].position}
-                to={renderedProject.components[to].position}
-                kind="water"
-                blocked={renderedProject.failures.intakeBlocked}
-              />
-            ))}
-            {POWER_ROUTE.map(([from, to]) => (
-              <RouteLine
-                key={from + to}
-                from={renderedProject.components[from].position}
-                to={renderedProject.components[to].position}
-                kind="power"
-              />
-            ))}
+            {routes.water.map(([from, to]) => {
+              const fromComponent = renderedProject.components[from];
+              const toComponent = renderedProject.components[to];
+              if (!fromComponent || !toComponent) return null;
+              return (
+                <RouteLine
+                  key={from + to}
+                  from={fromComponent.position}
+                  to={toComponent.position}
+                  kind="water"
+                  blocked={renderedProject.failures.intakeBlocked}
+                />
+              );
+            })}
+            {routes.power.map(([from, to]) => {
+              const fromComponent = renderedProject.components[from];
+              const toComponent = renderedProject.components[to];
+              if (!fromComponent || !toComponent) return null;
+              return (
+                <RouteLine
+                  key={from + to}
+                  from={fromComponent.position}
+                  to={toComponent.position}
+                  kind="power"
+                  blocked={renderedProject.failures.inverterOffline}
+                />
+              );
+            })}
 
-            {Object.values(renderedProject.components).map((component) => {
+            {Object.values(renderedProject.components).filter(Boolean).map((component) => {
               const positionStyle: CSSProperties = {
                 left: String(component.position.x) + "%",
                 top: String(component.position.y) + "%",
@@ -549,12 +695,12 @@ export function EnergyCircleExperience() {
                   <PropertyObject id={component.id} />
                   <span className="component__mark">{MARKS[component.id]}</span>
                   <span className="component__label">{component.label}</span>
-                  {component.id === "upperReservoir" &&
-                    project.revision === 1 &&
+                  {component.id === scenario.initialComponent &&
+                    promptFamily === project.familyId &&
                     viewMode === "property" && (
                       <span className="component__start" aria-hidden="true">
                         <small>Start here</small>
-                        <strong>Drag the tank uphill</strong>
+                        <strong>{scenario.startPrompt}</strong>
                         <i>↑</i>
                       </span>
                     )}
@@ -563,7 +709,9 @@ export function EnergyCircleExperience() {
             })}
 
             <div className="flow-key" aria-hidden="true">
-              <span><i className="water-key" /> Water path</span>
+              {project.familyId === "gravity-storage" && (
+                <span><i className="water-key" /> Water path</span>
+              )}
               <span><i className="power-key" /> Electrical path</span>
             </div>
             <div className="scale-key" aria-hidden="true">
@@ -595,14 +743,17 @@ export function EnergyCircleExperience() {
               {preview && <span className="preview-badge">Preview</span>}
             </div>
             <div className="metrics-grid">
-              <Metric metric={result.netHead} emphasis />
-              <Metric metric={result.headLossPercent} />
-              <Metric metric={result.storedEnergy} emphasis />
-              <Metric metric={result.runtime} />
+              {result.headlineMetrics.map((metric, index) => (
+                <Metric
+                  key={metric.label}
+                  metric={metric}
+                  emphasis={index === 0 || index === 2}
+                />
+              ))}
             </div>
             <div className="target-line">
-              <span>Defined autonomy target</span>
-              <strong>{formatValue(result.requiredEnergy)}</strong>
+              <span>{result.targetMetric.label}</span>
+              <strong>{formatValue(result.targetMetric)}</strong>
             </div>
           </div>
 
@@ -610,68 +761,128 @@ export function EnergyCircleExperience() {
             <div className="section-heading">
               <div>
                 <span className="eyebrow">Selected component</span>
-                <h2>{renderedProject.components[selected].label}</h2>
+                <h2>{selectedComponent?.label}</h2>
               </div>
               <span className="component-type">
-                {renderedProject.components[selected].kind}
+                {selectedComponent?.kind}
               </span>
             </div>
 
-            <label className="control">
-              <span>Pipe diameter <small>assumed</small></span>
-              <strong>
-                {Math.round(renderedProject.parameters.pipeDiameterM * 1000)} mm
-              </strong>
-              <input
-                type="range"
-                min="32"
-                max="110"
-                step="1"
-                value={Math.round(renderedProject.parameters.pipeDiameterM * 1000)}
-                onPointerDown={(event) =>
-                  startControlPreview(event, {
-                    type: "set-pipe-diameter",
-                    valueM: renderedProject.parameters.pipeDiameterM,
-                  })
-                }
-                onPointerUp={finishDrag}
-                onPointerCancel={cancelDrag}
-                onChange={(event) =>
-                  updateControlPreview({
-                    type: "set-pipe-diameter",
-                    valueM: Number(event.target.value) / 1000,
-                  })
-                }
-                aria-label="Pipe diameter in millimeters"
-              />
-            </label>
+            {project.familyId === "gravity-storage" ? (
+              <>
+                <label className="control">
+                  <span>Pipe diameter <small>assumed</small></span>
+                  <strong>
+                    {Math.round((renderedProject.parameters.pipeDiameterM ?? 0) * 1000)} mm
+                  </strong>
+                  <input
+                    type="range"
+                    min="32"
+                    max="110"
+                    step="1"
+                    value={Math.round((renderedProject.parameters.pipeDiameterM ?? 0) * 1000)}
+                    onPointerDown={(event) =>
+                      startControlPreview(event, {
+                        type: "set-pipe-diameter",
+                        valueM: renderedProject.parameters.pipeDiameterM ?? 0.05,
+                      })
+                    }
+                    onPointerUp={finishDrag}
+                    onPointerCancel={cancelDrag}
+                    onChange={(event) =>
+                      updateControlPreview({
+                        type: "set-pipe-diameter",
+                        valueM: Number(event.target.value) / 1000,
+                      })
+                    }
+                    aria-label="Pipe diameter in millimeters"
+                  />
+                </label>
 
-            <label className="control">
-              <span>Upper storage <small>assumed</small></span>
-              <strong>{renderedProject.parameters.reservoirVolumeM3} m³</strong>
-              <input
-                type="range"
-                min="20"
-                max="300"
-                step="5"
-                value={renderedProject.parameters.reservoirVolumeM3}
-                onPointerDown={(event) =>
-                  startControlPreview(event, {
-                    type: "set-reservoir-volume",
-                    valueM3: renderedProject.parameters.reservoirVolumeM3,
-                  })
-                }
-                onPointerUp={finishDrag}
-                onPointerCancel={cancelDrag}
-                onChange={(event) =>
-                  updateControlPreview({
-                    type: "set-reservoir-volume",
-                    valueM3: Number(event.target.value),
-                  })
-                }
-                aria-label="Upper reservoir storage in cubic meters"
-              />
-            </label>
+                <label className="control">
+                  <span>Upper storage <small>assumed</small></span>
+                  <strong>{renderedProject.parameters.reservoirVolumeM3} m³</strong>
+                  <input
+                    type="range"
+                    min="20"
+                    max="300"
+                    step="5"
+                    value={renderedProject.parameters.reservoirVolumeM3}
+                    onPointerDown={(event) =>
+                      startControlPreview(event, {
+                        type: "set-reservoir-volume",
+                        valueM3: renderedProject.parameters.reservoirVolumeM3 ?? 135,
+                      })
+                    }
+                    onPointerUp={finishDrag}
+                    onPointerCancel={cancelDrag}
+                    onChange={(event) =>
+                      updateControlPreview({
+                        type: "set-reservoir-volume",
+                        valueM3: Number(event.target.value),
+                      })
+                    }
+                    aria-label="Upper reservoir storage in cubic meters"
+                  />
+                </label>
+              </>
+            ) : (
+              <>
+                <label className="control">
+                  <span>Solar array <small>assumed</small></span>
+                  <strong>{renderedProject.parameters.solarArrayKw} kW</strong>
+                  <input
+                    type="range"
+                    min="0.4"
+                    max="12"
+                    step="0.1"
+                    value={renderedProject.parameters.solarArrayKw}
+                    onPointerDown={(event) =>
+                      startControlPreview(event, {
+                        type: "set-solar-array-capacity",
+                        valueKw: renderedProject.parameters.solarArrayKw ?? 2.6,
+                      })
+                    }
+                    onPointerUp={finishDrag}
+                    onPointerCancel={cancelDrag}
+                    onChange={(event) =>
+                      updateControlPreview({
+                        type: "set-solar-array-capacity",
+                        valueKw: Number(event.target.value),
+                      })
+                    }
+                    aria-label="Solar array capacity in kilowatts"
+                  />
+                </label>
+
+                <label className="control">
+                  <span>Battery capacity <small>assumed</small></span>
+                  <strong>{renderedProject.parameters.batteryCapacityKwh} kWh</strong>
+                  <input
+                    type="range"
+                    min="1"
+                    max="40"
+                    step="0.5"
+                    value={renderedProject.parameters.batteryCapacityKwh}
+                    onPointerDown={(event) =>
+                      startControlPreview(event, {
+                        type: "set-battery-capacity",
+                        valueKwh: renderedProject.parameters.batteryCapacityKwh ?? 10,
+                      })
+                    }
+                    onPointerUp={finishDrag}
+                    onPointerCancel={cancelDrag}
+                    onChange={(event) =>
+                      updateControlPreview({
+                        type: "set-battery-capacity",
+                        valueKwh: Number(event.target.value),
+                      })
+                    }
+                    aria-label="Battery capacity in kilowatt hours"
+                  />
+                </label>
+              </>
+            )}
           </div>
 
           <div className="analysis-panel__section">
@@ -714,23 +925,39 @@ export function EnergyCircleExperience() {
           <div className="analysis-panel__section analysis-panel__section--failure">
             <div>
               <span className="eyebrow">Failure trace</span>
-              <strong>Intake obstruction</strong>
-              <p>Simulates one deterministic interruption in the water path.</p>
+              <strong>
+                {project.familyId === "gravity-storage"
+                  ? "Intake obstruction"
+                  : "Inverter outage"}
+              </strong>
+              <p>
+                {project.familyId === "gravity-storage"
+                  ? "Simulates one deterministic interruption in the water path."
+                  : "Simulates one deterministic interruption in the AC conversion path."}
+              </p>
             </div>
             <button
               className={
-                "toggle " +
-                (renderedProject.failures.intakeBlocked ? "is-on" : "")
+                "toggle " + (failureActive ? "is-on" : "")
               }
               type="button"
               role="switch"
-              aria-checked={renderedProject.failures.intakeBlocked}
-              aria-label="Simulate intake obstruction"
+              aria-checked={failureActive}
+              aria-label={
+                project.familyId === "gravity-storage"
+                  ? "Simulate intake obstruction"
+                  : "Simulate inverter outage"
+              }
               onClick={() =>
-                commit({
-                  type: "set-intake-blocked",
-                  blocked: !project.failures.intakeBlocked,
-                })
+                project.familyId === "gravity-storage"
+                  ? commit({
+                      type: "set-intake-blocked",
+                      blocked: !project.failures.intakeBlocked,
+                    })
+                  : commit({
+                      type: "set-inverter-offline",
+                      offline: !project.failures.inverterOffline,
+                    })
               }
             >
               <span />

@@ -332,6 +332,13 @@ input:focus-visible {
     rgba(251, 250, 245, 0.94);
 }
 
+.family-card.is-active-model {
+  border-color: rgba(50, 131, 90, 0.72);
+  box-shadow:
+    inset 0 0 0 1px rgba(50, 131, 90, 0.2),
+    0 7px 18px rgba(36, 52, 43, 0.1);
+}
+
 .family-card__glyph {
   width: max-content;
   padding: 3px 6px;
@@ -376,6 +383,10 @@ input:focus-visible {
 
 .family-card.is-live .family-card__state {
   color: var(--water-deep);
+}
+
+.family-card.is-active-model .family-card__state {
+  color: var(--ok);
 }
 
 .scenario-intro {
@@ -1310,6 +1321,51 @@ footer {
   transform: scale(0.9);
 }
 
+.property__shade-zone {
+  position: absolute;
+  z-index: 0;
+  width: 39%;
+  height: 54%;
+  left: -4%;
+  bottom: -5%;
+  display: grid;
+  align-items: end;
+  padding: 0 0 14px 32px;
+  border: 1px dashed rgba(35, 72, 49, 0.34);
+  border-radius: 50% 50% 42% 10%;
+  background:
+    repeating-linear-gradient(
+      135deg,
+      rgba(31, 66, 44, 0.08) 0 8px,
+      rgba(31, 66, 44, 0.16) 9px 10px
+    );
+  color: rgba(23, 61, 38, 0.66);
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+.family--solar-pv.experience--property .property__ridge--back {
+  height: 43%;
+  bottom: 9%;
+  background: linear-gradient(150deg, #a8b693, #789574);
+  transform: rotate(-3deg);
+}
+
+.family--solar-pv.experience--property .property__ridge--front {
+  height: 48%;
+  bottom: -27%;
+  background: linear-gradient(150deg, #718e69, #456d52);
+}
+
+.family--solar-pv.experience--property .property__sun {
+  box-shadow:
+    0 0 0 14px rgba(236, 179, 64, 0.1),
+    0 0 42px rgba(236, 179, 64, 0.28);
+}
+
 .experience--property .route {
   z-index: 3;
 }
@@ -1601,6 +1657,47 @@ footer {
   font-size: 7px;
 }
 
+.physical-object--battery {
+  width: 54px;
+  height: 58px;
+  left: 19px;
+  top: 8px;
+  border: 3px solid #73796f;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #aeb3aa, #ece9d8 48%, #b8bcb2);
+}
+
+.physical-object--battery .battery__terminal {
+  position: absolute;
+  width: 24px;
+  height: 5px;
+  top: -7px;
+  left: 12px;
+  border-radius: 3px 3px 0 0;
+  background: #686e66;
+}
+
+.physical-object--battery .battery__charge {
+  position: absolute;
+  width: 30px;
+  height: 20px;
+  top: 10px;
+  left: 9px;
+  border: 2px solid #65756c;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #4fa56d 0 72%, transparent 72%);
+}
+
+.physical-object--battery b {
+  position: absolute;
+  left: 8px;
+  bottom: 7px;
+  color: #4f5952;
+  font-family: "Courier New", monospace;
+  font-size: 6px;
+  letter-spacing: 0.05em;
+}
+
 .physical-object--machine .machine__house {
   position: absolute;
   width: 69px;
@@ -1834,7 +1931,8 @@ footer {
     max-width: none;
   }
 
-  .workspace {
+  .workspace,
+  .experience--property .workspace {
     grid-template-columns: 1fr;
   }
 

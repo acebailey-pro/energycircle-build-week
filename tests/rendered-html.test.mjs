@@ -39,7 +39,8 @@ test("server-renders the EnergyCircle reference experience", async () => {
   assert.match(html, /Solar PV/);
   assert.match(html, /Gravity storage/);
   assert.match(html, />Hybrid</);
-  assert.match(html, /Live model/);
+  assert.match(html, /Active model/);
+  assert.match(html, /Open model/);
   assert.match(html, /Catalogued/);
   assert.match(html, /System verdict/);
   assert.match(html, />property<\/button>/i);
@@ -85,6 +86,6 @@ test("the recovered product catalog is complete and truthfully staged", async ()
   ];
 
   for (const id of ids) assert.match(catalog, new RegExp(`id: "${id}"`));
-  assert.equal((catalog.match(/demonstration: "live",/g) ?? []).length, 1);
-  assert.equal((catalog.match(/demonstration: "catalogued",/g) ?? []).length, 8);
+  assert.equal((catalog.match(/demonstration: "live",/g) ?? []).length, 2);
+  assert.equal((catalog.match(/demonstration: "catalogued",/g) ?? []).length, 7);
 });

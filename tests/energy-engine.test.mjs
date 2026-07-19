@@ -7,6 +7,7 @@ import {
   commitMutation,
   evaluateProject,
   referenceProject,
+  solarReferenceProject,
   updatePreview,
 } from "../app/lib/energy-engine.ts";
 
@@ -17,7 +18,7 @@ test("the reference scenario begins fragile and exposes the storage constraint",
   assert.ok(
     result.warnings.some((warning) => warning.id === "storage-shortfall"),
   );
-  assert.ok(Number(result.storedEnergy.value) < Number(result.requiredEnergy.value));
+  assert.ok(Number(result.storageMetric.value) < Number(result.targetMetric.value));
 });
 
 test("preview calculations never mutate or revise canonical project truth", () => {
@@ -51,7 +52,7 @@ test("a governed preview commits exactly one revision and all results follow it"
   assert.equal(committed.revision, referenceProject.revision + 1);
   assert.equal(result.projectRevision, committed.revision);
   assert.equal(result.feasibility, "VIABLE");
-  assert.ok(Number(result.storedEnergy.value) >= Number(result.requiredEnergy.value));
+  assert.ok(Number(result.storageMetric.value) >= Number(result.targetMetric.value));
 });
 
 test("a no-op preview does not create a project revision", () => {
@@ -73,6 +74,59 @@ test("a simulated intake blockage propagates through the governed engine", () =>
   const result = evaluateProject(blocked);
 
   assert.equal(result.feasibility, "INFEASIBLE");
-  assert.equal(result.generatedPower.value, 0);
+  assert.equal(result.productionMetric.value, 0);
   assert.ok(result.warnings.some((warning) => warning.id === "intake-blocked"));
+});
+
+test("the solar reference begins fragile because modeled shading limits harvest", () => {
+  const result = evaluateProject(solarReferenceProject);
+
+  assert.equal(result.familyId, "solar-pv");
+  assert.equal(result.feasibility, "FRAGILE");
+  assert.ok(
+    result.warnings.some((warning) => warning.id === "solar-harvest-shortfall"),
+  );
+  assert.ok(result.warnings.some((warning) => warning.id === "array-shading"));
+  assert.ok(
+    Number(result.productionMetric.value) < Number(result.targetMetric.value),
+  );
+});
+
+test("moving the solar array commits one revision and clears the modeled obstruction", () => {
+  const transaction = beginPreview(solarReferenceProject, {
+    type: "move-component",
+    id: "solar",
+    position: { x: 36, y: 22 },
+  });
+  const committed = commitPreview(transaction);
+  const result = evaluateProject(committed);
+
+  assert.equal(committed.revision, solarReferenceProject.revision + 1);
+  assert.equal(result.projectRevision, committed.revision);
+  assert.equal(result.feasibility, "VIABLE");
+  assert.ok(Number(result.lossMetric.value) < 10);
+  assert.ok(
+    Number(result.productionMetric.value) >= Number(result.targetMetric.value),
+  );
+});
+
+test("a simulated solar inverter outage propagates through the governed engine", () => {
+  const offline = commitMutation(solarReferenceProject, {
+    type: "set-inverter-offline",
+    offline: true,
+  });
+  const result = evaluateProject(offline);
+
+  assert.equal(result.feasibility, "INFEASIBLE");
+  assert.equal(result.productionMetric.value, 0);
+  assert.ok(result.warnings.some((warning) => warning.id === "inverter-offline"));
+});
+
+test("family-specific mutations cannot alter the wrong project model", () => {
+  const unchanged = commitMutation(solarReferenceProject, {
+    type: "set-pipe-diameter",
+    valueM: 0.08,
+  });
+
+  assert.equal(unchanged, solarReferenceProject);
 });
