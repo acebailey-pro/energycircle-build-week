@@ -63,6 +63,18 @@ test(
       });
       await page.goto(baseUrl, { waitUntil: "networkidle" });
 
+      assert.equal(await page.locator(".family-card").count(), 9);
+      assert.equal(await page.locator(".family-card.is-live").count(), 1);
+      await page.getByRole("button", { name: /Solar PV/i }).click();
+      assert.match(
+        (await page.locator(".family-focus").textContent()) ?? "",
+        /Solar photovoltaic/i,
+      );
+      assert.match(
+        (await page.locator(".topbar__context").textContent()) ?? "",
+        /Revision 1/,
+      );
+
       assert.equal(
         await page.locator(".property").getAttribute("data-view"),
         "property",

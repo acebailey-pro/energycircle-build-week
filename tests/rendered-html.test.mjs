@@ -34,7 +34,13 @@ test("server-renders the EnergyCircle reference experience", async () => {
     /<title>EnergyCircle \| Interactive Property Energy Model<\/title>/i,
   );
   assert.match(html, /Hillside Water Storage/);
-  assert.match(html, /A worked example\. Your property comes next\./);
+  assert.match(html, /Start with what your property already has\./);
+  assert.match(html, /Nine pathways, not one prescribed system/);
+  assert.match(html, /Solar PV/);
+  assert.match(html, /Gravity storage/);
+  assert.match(html, />Hybrid</);
+  assert.match(html, /Live model/);
+  assert.match(html, /Catalogued/);
   assert.match(html, /System verdict/);
   assert.match(html, />property<\/button>/i);
   assert.match(html, /What this system can do/);
@@ -58,4 +64,27 @@ test("meaningful controls are wired through the governed engine", async () => {
   assert.match(experience, /role="switch"/);
   assert.match(engine, /projectRevision: project\.revision/);
   assert.match(engine, /truth: TruthState/);
+});
+
+test("the recovered product catalog is complete and truthfully staged", async () => {
+  const catalog = await readFile(
+    new URL("../app/lib/architecture-catalog.ts", import.meta.url),
+    "utf8",
+  );
+
+  const ids = [
+    "solar-pv",
+    "solar-thermal",
+    "wind",
+    "flow-power",
+    "bioenergy",
+    "thermal-recovery",
+    "mechanical-human",
+    "gravity-storage",
+    "coordinated-hybrid",
+  ];
+
+  for (const id of ids) assert.match(catalog, new RegExp(`id: "${id}"`));
+  assert.equal((catalog.match(/demonstration: "live",/g) ?? []).length, 1);
+  assert.equal((catalog.match(/demonstration: "catalogued",/g) ?? []).length, 8);
 });

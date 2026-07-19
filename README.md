@@ -70,10 +70,18 @@ scores, or recommendations outside the governed deterministic engine.
 
 ## Build Week provenance
 
-EnergyCircle was implemented as new work for OpenAI Build Week 2026. The prior
-Metabolic Systems Builder project was inspected only as reference material for
-design lineage, deterministic-engineering lessons, and architectural
-anti-patterns. **No source code from that project was reused in EnergyCircle.**
+This repository's EnergyCircle implementation was written as new work for
+OpenAI Build Week 2026. A pre-Build Week EnergyCircle prototype archived on
+July 8, 2026 was used as product-definition lineage for the nine-family energy
+catalog: solar PV, solar thermal, wind, water and pressure, bioenergy, thermal
+recovery, mechanical and human power, gravity storage, and coordinated hybrid
+systems. Its application code, calculations, interface, and assets were not
+imported into this repository.
+
+The prior Metabolic Systems Builder project was also inspected only as reference
+material for design lineage, deterministic-engineering lessons, and
+architectural anti-patterns. **No source code or assets from either prior
+application were reused in this Build Week implementation.**
 
 ## Run locally
 

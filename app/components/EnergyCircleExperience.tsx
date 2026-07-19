@@ -25,6 +25,11 @@ import {
   type ProjectModel,
   type TruthValue,
 } from "../lib/energy-engine";
+import {
+  ENERGY_FAMILIES,
+  LIVE_FAMILY,
+  type EnergyFamilyId,
+} from "../lib/architecture-catalog";
 
 type ViewMode = "property" | "system" | "blueprint";
 
@@ -173,6 +178,8 @@ export function EnergyCircleExperience() {
   const [selected, setSelected] =
     useState<ComponentId>("upperReservoir");
   const [viewMode, setViewMode] = useState<ViewMode>("property");
+  const [catalogFocus, setCatalogFocus] =
+    useState<EnergyFamilyId>(LIVE_FAMILY.id);
   const [insight, setInsight] = useState(
     "The 50 mm pipe consumes part of the available head. Move the upper reservoir to reveal how geometry changes the whole system.",
   );
@@ -329,16 +336,18 @@ export function EnergyCircleExperience() {
       : result.feasibility === "FRAGILE"
         ? "The system operates, but at least one defined threshold is not met."
         : "A modeled constraint prevents the system from serving its critical load.";
+  const focusedFamily =
+    ENERGY_FAMILIES.find((family) => family.id === catalogFocus) ?? LIVE_FAMILY;
 
   return (
     <main className={"experience experience--" + viewMode}>
       <header className="topbar">
-        <a className="brand" href="#scenario" aria-label="EnergyCircle home">
+        <a className="brand" href="#families" aria-label="EnergyCircle home">
           <span className="brand__orbit" aria-hidden="true"><i /></span>
           <span>EnergyCircle</span>
         </a>
         <div className="topbar__context">
-          <span>Reference scenario 01</span>
+          <span>Nine energy families</span>
           <i aria-hidden="true" />
           <span>Revision {project.revision}</span>
         </div>
@@ -361,13 +370,80 @@ export function EnergyCircleExperience() {
         </button>
       </header>
 
-      <section className="hero" id="scenario">
+      <section className="hero" id="families">
         <div className="hero__copy">
-          <span className="eyebrow">A worked example. Your property comes next.</span>
-          <h1>Hillside Water Storage</h1>
+          <span className="eyebrow">Property-scale energy systems</span>
+          <h1>Start with what your property already has.</h1>
           <p>
-            Explore one connected property model. Move a component and every
-            calculation, warning, and drawing responds from the same project truth.
+            Sun, wind, water, heat, organic material, motion, and elevation can
+            become different systems. EnergyCircle keeps those paths visible
+            before asking anyone to conform to one design.
+          </p>
+        </div>
+        <div className="family-focus" aria-live="polite">
+          <div className="family-focus__topline">
+            <span>{focusedFamily.glyph}</span>
+            <small>
+              {focusedFamily.demonstration === "live"
+                ? "Live governed model"
+                : "Product family"}
+            </small>
+          </div>
+          <strong>{focusedFamily.name}</strong>
+          <p>{focusedFamily.pathway}</p>
+          <div className="family-focus__facts">
+            <span><b>Source</b>{focusedFamily.source}</span>
+            <span><b>Role</b>{focusedFamily.purpose}</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="family-atlas" aria-labelledby="family-atlas-title">
+        <div className="family-atlas__heading">
+          <div>
+            <span className="eyebrow">Energy family atlas</span>
+            <h2 id="family-atlas-title">Nine pathways, not one prescribed system</h2>
+          </div>
+          <p>
+            Browse the original EnergyCircle family catalog. The gravity-storage
+            family is the live, fully governed Build Week reference below.
+          </p>
+        </div>
+        <div className="family-atlas__grid">
+          {ENERGY_FAMILIES.map((family) => (
+            <button
+              type="button"
+              key={family.id}
+              className={
+                "family-card" +
+                (catalogFocus === family.id ? " is-focused" : "") +
+                (family.demonstration === "live" ? " is-live" : "")
+              }
+              aria-pressed={catalogFocus === family.id}
+              onClick={() => setCatalogFocus(family.id)}
+            >
+              <span className="family-card__glyph" aria-hidden="true">
+                {family.glyph}
+              </span>
+              <span className="family-card__copy">
+                <strong>{family.shortName}</strong>
+                <small>{family.source}</small>
+              </span>
+              <span className="family-card__state">
+                {family.demonstration === "live" ? "Live model" : "Catalogued"}
+              </span>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="scenario-intro" id="scenario">
+        <div>
+          <span className="eyebrow">Interactive reference scenario 01</span>
+          <h2>Hillside Water Storage</h2>
+          <p>
+            Move a recognizable component. Geometry, routing, losses, stored
+            energy, runtime, warnings, and every representation respond together.
           </p>
         </div>
         <div
