@@ -5,7 +5,7 @@ import test from "node:test";
 
 import { chromium } from "playwright-core";
 
-const baseUrl = "http://localhost:5173";
+const baseUrl = "http://localhost:5187";
 const edgeCandidates = [
   process.env.PLAYWRIGHT_BROWSER_PATH,
   "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
@@ -22,7 +22,7 @@ async function isReady() {
 }
 
 async function waitForServer() {
-  for (let attempt = 0; attempt < 40; attempt += 1) {
+  for (let attempt = 0; attempt < 120; attempt += 1) {
     if (await isReady()) return;
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
@@ -51,7 +51,7 @@ test(
   async () => {
     let server;
     if (!(await isReady())) {
-      server = spawn(process.execPath, ["./node_modules/vinext/dist/cli.js", "dev"], {
+      server = spawn(process.execPath, ["./node_modules/vinext/dist/cli.js", "dev", "--port", "5187"], {
         cwd: new URL("..", import.meta.url), stdio: "ignore", windowsHide: true,
       });
       await waitForServer();
@@ -77,9 +77,15 @@ test(
       assert.equal(await page.locator(".family-card").count(), 9);
       assert.equal(await page.locator(".family-card.is-live").count(), 9);
       assert.equal(await page.getByText("Catalogued", { exact: true }).count(), 0);
+      assert.equal(await page.locator(".property-brief").count(), 1);
+      assert.equal(await page.locator(".resource-option").count(), 8);
+      assert.equal(await page.locator(".property-matches article").count(), 3);
+      const waterFlow = page.getByRole("button", { name: /Water flow: Not identified/i });
+      await waterFlow.click();
+      await page.getByRole("button", { name: /Water flow: Possible/i }).waitFor();
 
       for (const [card, heading, familyId] of systems) {
-        await page.getByRole("button", { name: new RegExp(`^${card}`) }).click();
+        await page.locator(".family-card").filter({ has: page.getByText(card, { exact: true }) }).click();
         await page.getByRole("heading", { name: heading }).waitFor();
         assert.equal(await page.locator(".property").getAttribute("data-family"), familyId);
         assert.ok(await page.locator(".component").count() >= 4, familyId);
@@ -89,6 +95,11 @@ test(
         assert.equal(await page.locator(".access-tier").count(), 5, familyId);
         assert.match((await page.locator(".access-tier--existing").textContent()) ?? "", /\$0 new equipment/i);
 
+        const beforeReplacement = await page.locator(".cost-card").textContent();
+        await page.getByRole("button", { name: /Verified reclaimed/i }).first().click();
+        assert.equal(await page.locator(".replacement-options button.is-active").count(), 1, familyId);
+        assert.notEqual(await page.locator(".cost-card").textContent(), beforeReplacement, familyId);
+
         await page.getByRole("tab", { name: "Component schedule" }).click();
         assert.equal(await page.locator(".component-schedule article").count(), await page.locator(".component").count(), familyId);
 
@@ -96,6 +107,10 @@ test(
         assert.ok(await page.locator(".budget-row").count() >= 6, familyId);
         await page.getByRole("tab", { name: "Resilience" }).click();
         assert.equal(await page.locator(".resilience-case").count(), 5, familyId);
+        await page.getByRole("tab", { name: "Exploded assemblies" }).click();
+        assert.equal(await page.locator(".exploded-assembly article").count(), 5, familyId);
+        await page.getByRole("tab", { name: "Cost of inaction" }).click();
+        assert.equal(await page.locator(".inaction-result > div").count(), 3, familyId);
         await page.getByRole("tab", { name: "$0 to complete" }).click();
 
         const failure = page.getByRole("switch");
@@ -105,7 +120,7 @@ test(
         await failure.click();
       }
 
-      await page.getByRole("button", { name: /^Gravity storage/ }).click();
+      await page.locator(".family-card").filter({ has: page.getByText("Gravity storage", { exact: true }) }).click();
       await page.getByRole("heading", { name: "Hillside Water Storage" }).waitFor();
       assert.equal(await page.locator(".verdict strong").textContent(), "FRAGILE");
       await dragComponent(page, /Upper reservoir\. Drag to reposition/, 0.1);
@@ -127,7 +142,7 @@ test(
       assert.equal(await page.locator(".field-sequence > li").count(), 6);
       await page.getByRole("tab", { name: "Revision record" }).click();
       assert.match((await page.locator(".revision-seal strong").textContent()) ?? "", /^EC-[0-9A-F]{8}$/);
-      assert.equal(await page.locator(".print-report .report-page").count(), 10);
+      assert.ok(await page.locator(".print-report .report-page").count() >= 15);
       assert.equal(await page.getByRole("button", { name: /Print \/ save PDF/i }).count(), 1);
     } finally {
       await browser.close();

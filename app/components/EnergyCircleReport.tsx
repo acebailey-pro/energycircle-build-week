@@ -36,6 +36,16 @@ export function EnergyCircleReport({ project, document }: { project: ProjectMode
     </section>
 
     <section className="report-page">
+      <header className="report-heading"><span>00 / Property brief and architecture comparison</span><h2>What the property says before a system is selected</h2><p>Compatibility ranks possibilities from explicit resources, objective, and budget. It explains; it does not choose.</p></header>
+      <div className="report-metrics"><div><span>Objective</span><strong>{project.property.objective}</strong><small>assumed</small></div><div><span>Starting budget</span><strong>{project.property.budgetBand}</strong><small>assumed</small></div><div><span>Active family</span><strong>{scenario.title}</strong><small>selected</small></div></div>
+      <h3 className="report-subheading">Declared property resources</h3>
+      <table className="report-table"><thead><tr><th>Resource</th><th>Level</th><th>Truth state</th><th>Required action</th></tr></thead><tbody>{Object.entries(project.property.resources).map(([resource, level]) => <tr key={resource}><td>{resource}</td><td>{["Not identified", "Possible", "Available"][level]}</td><td>assumed</td><td>{level === 2 ? "Measure and document" : level === 1 ? "Survey before relying on output" : "Do not claim output without new evidence"}</td></tr>)}</tbody></table>
+      <h3 className="report-subheading">Nine-family compatibility comparison</h3>
+      <table className="report-table"><thead><tr><th>Rank</th><th>Family</th><th>Match</th><th>Resource</th><th>Reason</th></tr></thead><tbody>{document.familyMatches.map((match, index) => <tr key={match.familyId}><td>{index + 1}</td><td><strong>{match.name}</strong></td><td>{match.status}<br /><small>{match.score}/100</small></td><td>{match.resourceLevel}</td><td>{match.reason}</td></tr>)}</tbody></table>
+      <PageFooter document={document} />
+    </section>
+
+    <section className="report-page">
       <header className="report-heading"><span>01 / Decision summary</span><h2>What the current revision says</h2><p>All values below derive from the same canonical project revision.</p></header>
       <div className="report-metrics">{result.headlineMetrics.map((item) => <div key={item.label}><span>{item.label}</span><strong>{metric(item)}</strong><small>{item.truth}</small></div>)}</div>
       <div className="report-two-column">
@@ -85,6 +95,23 @@ export function EnergyCircleReport({ project, document }: { project: ProjectMode
       <header className="report-heading"><span>05 / Budget and procurement</span><h2>Planning allowance by assembly</h2><p>Obtain current local quotes using selected equipment ratings and verified site quantities. Do not procure from this allocation alone.</p></header>
       <table className="report-table report-table--budget"><thead><tr><th>Assembly</th><th>Qty.</th><th>Accessible</th><th>Installed</th></tr></thead><tbody>{document.budget.map((line) => <tr key={line.id}><td><strong>{line.item}</strong><br /><small>{line.basis}</small></td><td>{line.quantity} {line.unit}</td><td>{money(line.accessible.low)}â€“{money(line.accessible.high)}</td><td>{money(line.installed.low)}â€“{money(line.installed.high)}</td></tr>)}</tbody><tfoot><tr><th>Current planning envelope</th><td /><th>{money(result.cost.accessible.low)}â€“{money(result.cost.accessible.high)}</th><th>{money(result.cost.installed.low)}â€“{money(result.cost.installed.high)}</th></tr></tfoot></table>
       <section className="report-checklist"><h3>Quote and procurement checklist</h3><ul><li>Replace every generic assembly with a manufacturer, model, rating, quantity, warranty, and lead time.</li><li>Separate equipment, consumables, delivery, rentals, excavation or foundations, permits, inspections, commissioning, tax, and contingency.</li><li>Verify that every connected component shares compatible voltage, pressure, temperature, flow, load, chemistry, controls, and environmental ratings.</li><li>Document donated or reused equipment condition; replacement value may be nonzero even when out-of-pocket cost is zero.</li><li>Keep safety, protection, containment, and inspection items in scope when reducing cost.</li></ul></section>
+      <PageFooter document={document} />
+    </section>
+
+    {document.assemblies.map((assembly, assemblyIndex) => <section className="report-page" key={assembly.componentId}>
+      <header className="report-heading"><span>05A-{String(assemblyIndex + 1).padStart(2, "0")} / Exploded assembly</span><h2>{assembly.componentLabel}</h2><p>{assembly.variantLabel} Â· {assembly.componentKind} Â· service-life evidence: {assembly.serviceLife}</p></header>
+      <div className="report-assembly-variant"><strong>Selection evidence</strong><p>{assembly.evidence}</p><strong>Selection boundary</strong><p>{assembly.boundary}</p></div>
+      <table className="report-table report-table--assembly"><thead><tr><th>Part</th><th>Function</th><th>Interface</th><th>Inspection gate</th><th>Failure effect</th></tr></thead><tbody>{assembly.parts.map((part) => <tr key={part.number}><td><strong>{part.number}</strong><br />{part.name}</td><td>{part.function}</td><td>{part.interface}</td><td>{part.inspection}</td><td>{part.failureEffect}</td></tr>)}</tbody></table>
+      <div className="report-two-column"><section><h3>Assembly and verification order</h3><ol className="report-bullets">{assembly.assemblyOrder.map((step) => <li key={step}>{step}</li>)}</ol></section><section><h3>Service and isolation</h3><p>{assembly.serviceAccess}</p><p><strong>Isolation gate:</strong> {assembly.isolationGate}</p></section></div>
+      <PageFooter document={document} />
+    </section>)}
+
+    <section className="report-page">
+      <header className="report-heading"><span>05B / Cost of inaction</span><h2>Continued operating and disruption exposure</h2><p>This scenario makes assumptions visible. It does not calculate guaranteed savings, payback, or a recommendation.</p></header>
+      <div className="report-metrics"><div><span>Annual operating cost</span><strong>{money(document.costOfInaction.annualBaselineCost)}</strong><small>assumed</small></div><div><span>Annual disruption exposure</span><strong>{money(document.costOfInaction.annualDisruptionCost)}</strong><small>assumed</small></div><div><span>Selected horizon</span><strong>{document.costOfInaction.horizonYears} years</strong><small>assumed</small></div><div><span>Cumulative operating</span><strong>{money(document.costOfInaction.cumulativeOperatingCost)}</strong><small>calculated</small></div><div><span>Cumulative disruption</span><strong>{money(document.costOfInaction.cumulativeDisruptionExposure)}</strong><small>calculated</small></div><div><span>Combined exposure</span><strong>{money(document.costOfInaction.combinedExposure)}</strong><small>estimated</small></div></div>
+      <section className="report-checklist"><h3>Interpretation</h3><p>{document.costOfInaction.interpretation}</p><p>{document.costOfInaction.basis}</p></section>
+      <table className="report-table"><thead><tr><th>Horizon</th><th>Operating exposure</th><th>Disruption exposure</th><th>Combined</th></tr></thead><tbody>{document.costOfInaction.projections.map((item) => <tr key={item.years}><td>{item.years} year{item.years === 1 ? "" : "s"}</td><td>{money(item.operating)}</td><td>{money(item.disruption)}</td><td><strong>{money(item.combined)}</strong></td></tr>)}</tbody></table>
+      <section className="report-checklist"><h3>Not monetized</h3><ul>{document.costOfInaction.notMonetized.map((item) => <li key={item}>{item}</li>)}</ul></section>
       <PageFooter document={document} />
     </section>
 

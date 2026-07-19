@@ -40,7 +40,8 @@ test("server-renders the EnergyCircle reference experience", async () => {
   assert.match(html, /Gravity storage/);
   assert.match(html, />Hybrid</);
   assert.match(html, /Active system/);
-  assert.match(html, /Open system/);
+  assert.match(html, /Structured property brief/);
+  assert.match(html, /STRONG MATCH|POSSIBLE|MEASURE FIRST/);
   assert.doesNotMatch(html, /Catalogued/);
   assert.match(html, /System verdict/);
   assert.match(html, />property<\/button>/i);
@@ -50,6 +51,9 @@ test("server-renders the EnergyCircle reference experience", async () => {
   assert.match(html, /\$0 to complete/);
   assert.match(html, /Print \/ save PDF/);
   assert.match(html, /Pre-build field package/);
+  assert.match(html, /Exploded assemblies/);
+  assert.match(html, /Cost of inaction/);
+  assert.match(html, /Replace component/);
   assert.match(html, /Revision record/);
   assert.match(html, /What this result knows/);
   assert.doesNotMatch(html, /Your site is taking shape|react-loading-skeleton/);

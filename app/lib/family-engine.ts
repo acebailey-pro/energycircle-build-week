@@ -11,6 +11,17 @@ export type Feasibility = "VIABLE" | "FRAGILE" | "INFEASIBLE";
 export type LiveFamilyId = EnergyFamilyId;
 export type ComponentId = string;
 export type RouteKind = "power" | "water" | "heat" | "gas" | "mechanical";
+export type ComponentVariantId = "reclaimed" | "standard" | "high-duty";
+export type PropertyObjective = "reduce-cost" | "backup" | "water-service" | "use-waste" | "independence";
+export type BudgetBand = "existing" | "starter" | "staged" | "complete";
+export type PropertyResourceId = "solar" | "wind" | "waterFlow" | "waterStorage" | "elevation" | "biomass" | "wasteHeat" | "humanMotion";
+export type ResourceLevel = 0 | 1 | 2;
+
+export interface PropertyProfile {
+  objective: PropertyObjective;
+  budgetBand: BudgetBand;
+  resources: Record<PropertyResourceId, ResourceLevel>;
+}
 
 export interface Point { x: number; y: number }
 
@@ -20,7 +31,25 @@ export interface EnergyComponent {
   mark: string;
   kind: "source" | "storage" | "conversion" | "load";
   position: Point;
+  variantId: ComponentVariantId;
 }
+
+export interface ComponentVariant {
+  id: ComponentVariantId;
+  label: string;
+  performanceFactor: number;
+  storageFactor: number;
+  costFactor: number;
+  serviceLife: string;
+  evidence: string;
+  boundary: string;
+}
+
+export const COMPONENT_VARIANTS: readonly ComponentVariant[] = [
+  { id: "reclaimed", label: "Verified reclaimed", performanceFactor: 0.82, storageFactor: 0.78, costFactor: 0.58, serviceLife: "Unknown until inspected", evidence: "Estimated derating until make, model, condition, and test data are recorded.", boundary: "Use only equipment with legible ratings, compatible specifications, safe condition, and required inspection." },
+  { id: "standard", label: "Standard new", performanceFactor: 1, storageFactor: 1, costFactor: 1, serviceLife: "Manufacturer-defined", evidence: "Reference performance and planning cost basis used by the active family model.", boundary: "Select an actual rated product before procurement or construction." },
+  { id: "high-duty", label: "High-duty / serviceable", performanceFactor: 1.08, storageFactor: 1.1, costFactor: 1.35, serviceLife: "Extended-duty target", evidence: "Estimated improvement pending selected-equipment curves, ratings, warranty, and service data.", boundary: "Higher rating does not remove compatibility, protection, site, or permit requirements." },
+] as const;
 
 export interface ProjectParameters {
   [key: string]: number | undefined;
@@ -35,6 +64,7 @@ export interface ProjectModel {
   revision: number;
   components: Record<ComponentId, EnergyComponent>;
   parameters: ProjectParameters;
+  property: PropertyProfile;
   failures: {
     intakeBlocked: boolean;
     inverterOffline: boolean;
@@ -123,7 +153,14 @@ export type DomainMutation =
   | { type: "set-critical-load"; valueKw: number }
   | { type: "set-autonomy-hours"; valueHours: number }
   | { type: "set-intake-blocked"; blocked: boolean }
-  | { type: "set-inverter-offline"; offline: boolean };
+  | { type: "set-inverter-offline"; offline: boolean }
+  | { type: "select-component-variant"; id: ComponentId; variantId: ComponentVariantId }
+  | { type: "set-inaction-annual-cost"; value: number }
+  | { type: "set-inaction-disruption-cost"; value: number }
+  | { type: "set-inaction-years"; value: number }
+  | { type: "set-property-objective"; objective: PropertyObjective }
+  | { type: "set-property-budget"; budgetBand: BudgetBand }
+  | { type: "set-property-resource"; resource: PropertyResourceId; level: ResourceLevel };
 
 export interface PreviewTransaction {
   base: ProjectModel;
@@ -138,7 +175,7 @@ const c = (
   kind: EnergyComponent["kind"],
   x: number,
   y: number,
-): EnergyComponent => ({ id, label, mark, kind, position: { x, y } });
+): EnergyComponent => ({ id, label, mark, kind, position: { x, y }, variantId: "standard" });
 
 const f = (overrides: Partial<ProjectModel["failures"]> = {}) => ({
   intakeBlocked: false,
@@ -146,6 +183,24 @@ const f = (overrides: Partial<ProjectModel["failures"]> = {}) => ({
   activeFailure: false,
   ...overrides,
 });
+
+const INACTION_DEFAULTS: Record<EnergyFamilyId, { annual: number; disruption: number }> = {
+  "solar-pv": { annual: 1800, disruption: 450 },
+  "solar-thermal": { annual: 900, disruption: 150 },
+  wind: { annual: 1500, disruption: 500 },
+  "flow-power": { annual: 1200, disruption: 400 },
+  bioenergy: { annual: 2400, disruption: 900 },
+  "thermal-recovery": { annual: 1100, disruption: 250 },
+  "mechanical-human": { annual: 300, disruption: 180 },
+  "gravity-storage": { annual: 1900, disruption: 700 },
+  "coordinated-hybrid": { annual: 2800, disruption: 1200 },
+};
+
+export const DEFAULT_PROPERTY_PROFILE: PropertyProfile = {
+  objective: "independence",
+  budgetBand: "staged",
+  resources: { solar: 2, wind: 1, waterFlow: 0, waterStorage: 2, elevation: 2, biomass: 1, wasteHeat: 0, humanMotion: 2 },
+};
 
 const project = (
   familyId: EnergyFamilyId,
@@ -158,7 +213,14 @@ const project = (
   familyId,
   revision: 1,
   components: Object.fromEntries(components.map((item) => [item.id, item])),
-  parameters,
+  parameters: {
+    annualBaselineCost: INACTION_DEFAULTS[familyId].annual,
+    annualDisruptionCost: INACTION_DEFAULTS[familyId].disruption,
+    inactionYears: 5,
+    annualEscalationPercent: 3,
+    ...parameters,
+  },
+  property: { ...DEFAULT_PROPERTY_PROFILE, resources: { ...DEFAULT_PROPERTY_PROFILE.resources } },
   failures: f(),
 });
 
@@ -488,14 +550,38 @@ const value = (label: string, amount: number | null, unit: string, truth: TruthS
 const required = (p: ProjectModel, key: string) => { const amount = p.parameters[key]; if (typeof amount !== "number") throw new Error(`Missing ${key} for ${p.familyId}`); return amount; };
 const component = (p: ProjectModel, id: string) => { const item = p.components[id]; if (!item) throw new Error(`Missing ${id} for ${p.familyId}`); return item; };
 const activeFailure = (p: ProjectModel) => p.failures.activeFailure || p.failures.intakeBlocked || p.failures.inverterOffline;
+const variant = (componentItem: EnergyComponent) => COMPONENT_VARIANTS.find((item) => item.id === componentItem.variantId) ?? COMPONENT_VARIANTS[1];
+const averageVariantFactor = (p: ProjectModel, kinds: EnergyComponent["kind"][], field: "performanceFactor" | "storageFactor" | "costFactor") => {
+  const selected = Object.values(p.components).filter((item) => kinds.includes(item.kind));
+  return selected.length === 0 ? 1 : selected.reduce((sum, item) => sum + variant(item)[field], 0) / selected.length;
+};
+const pathPerformanceFactor = (p: ProjectModel) => averageVariantFactor(p, ["source", "conversion"], "performanceFactor");
+const storagePerformanceFactor = (p: ProjectModel) => averageVariantFactor(p, ["storage"], "storageFactor");
+const projectCostFactor = (p: ProjectModel) => averageVariantFactor(p, ["source", "conversion", "storage", "load"], "costFactor");
+export const resourceAvailabilityFactor = (p: ProjectModel) => {
+  const r = p.property.resources;
+  const level: Record<EnergyFamilyId, number> = {
+    "solar-pv": r.solar,
+    "solar-thermal": r.solar,
+    wind: r.wind,
+    "flow-power": r.waterFlow,
+    bioenergy: r.biomass,
+    "thermal-recovery": r.wasteHeat,
+    "mechanical-human": r.humanMotion,
+    "gravity-storage": Math.min(r.waterStorage, r.elevation),
+    "coordinated-hybrid": Math.max(r.solar, r.wind, r.waterFlow, Math.min(r.waterStorage, r.elevation)),
+  };
+  return level[p.familyId] / 2;
+};
 
-export function createReferenceProject(familyId: LiveFamilyId, revision = 1): ProjectModel {
+export function createReferenceProject(familyId: LiveFamilyId, revision = 1, property?: PropertyProfile): ProjectModel {
   const source = references[familyId];
   return {
     ...source,
     revision,
     components: Object.fromEntries(Object.entries(source.components).map(([id, item]) => [id, { ...item, position: { ...item.position } }])),
     parameters: { ...source.parameters },
+    property: property ? { ...property, resources: { ...property.resources } } : { ...source.property, resources: { ...source.property.resources } },
     failures: { ...source.failures },
   };
 }
@@ -512,7 +598,15 @@ const cost = (familyId: EnergyFamilyId, p: ProjectModel): CostEstimate => {
     "gravity-storage": { accessible: { low: 12000, high: 45000 }, installed: { low: 45000, high: 250000 }, currency: "USD", truth: "estimated", basis: `${p.parameters.reservoirVolumeM3 ?? 135} m³ storage, pump/turbine, conveyance, controls, and civil work; excavation and geotechnical conditions can dominate.`, sourceLabel: "DOE pumped-storage system boundary; property-scale quote required", sourceUrl: "https://www.energy.gov/cmei/water/pumped-storage-hydropower", sourceYear: "2026" },
     "coordinated-hybrid": { accessible: { low: 18000, high: 55000 }, installed: { low: 55000, high: 220000 }, currency: "USD", truth: "estimated", basis: "Combined source, shared storage, controller, water-lift, protection, and integration envelope; not a vendor quote.", sourceLabel: "Derived from the active family planning envelopes", sourceUrl: null, sourceYear: "2026" },
   };
-  return entries[familyId];
+  const base = entries[familyId];
+  const factor = projectCostFactor(p);
+  const scale = (amount: number) => Math.round(amount * factor / 10) * 10;
+  return {
+    ...base,
+    accessible: { low: scale(base.accessible.low), high: scale(base.accessible.high) },
+    installed: { low: scale(base.installed.low), high: scale(base.installed.high) },
+    basis: `${base.basis} Active component selections apply a ${round(factor, 2)}Ã— planning-cost factor.`,
+  };
 };
 
 function finalize(
@@ -525,18 +619,26 @@ function finalize(
   nextMeasurement: string,
   feasibilityOverride?: Feasibility,
 ): EngineResult {
-  const production = Number(metrics.production.value ?? 0);
-  const storage = Number(metrics.storage.value ?? 0);
+  const availability = resourceAvailabilityFactor(p);
+  const adjustedProduction = typeof metrics.production.value === "number"
+    ? { ...metrics.production, value: round(metrics.production.value * availability, 2) }
+    : metrics.production;
+  const adjustedMetrics = { ...metrics, production: adjustedProduction };
+  const governedWarnings = [...warnings];
+  if (availability === 0) governedWarnings.unshift({ id: "property-resource-absent", severity: "critical", title: "Required property resource is absent", detail: "The structured property brief marks the active family's governing resource as unavailable, so useful output is zero." });
+  else if (availability < 1) governedWarnings.push({ id: "property-resource-limited", severity: "warning", title: "Property resource is provisional", detail: "The property brief marks this resource as possible rather than strong; modeled output is derated until it is measured." });
+  const production = Number(adjustedMetrics.production.value ?? 0);
+  const storage = Number(adjustedMetrics.storage.value ?? 0);
   const target = Number(metrics.target.value ?? 0);
   let feasibility: Feasibility = "VIABLE";
   if (activeFailure(p) || production < target * 0.65 || (storage > 0 && storage < target * 0.65)) feasibility = "INFEASIBLE";
-  else if (production < target || (storage > 0 && storage < target) || warnings.some((warning) => warning.severity === "warning")) feasibility = "FRAGILE";
+  else if (production < target || (storage > 0 && storage < target) || governedWarnings.some((warning) => warning.severity === "warning")) feasibility = "FRAGILE";
   if (feasibilityOverride) feasibility = feasibilityOverride;
   return {
     projectRevision: p.revision, familyId: p.familyId, feasibility,
-    resourceMetric: metrics.resource, lossMetric: metrics.loss, storageMetric: metrics.storage,
-    productionMetric: metrics.production, runtimeMetric: metrics.runtime, targetMetric: metrics.target,
-    headlineMetrics: [metrics.resource, metrics.loss, metrics.production, metrics.runtime], warnings,
+    resourceMetric: adjustedMetrics.resource, lossMetric: adjustedMetrics.loss, storageMetric: adjustedMetrics.storage,
+    productionMetric: adjustedMetrics.production, runtimeMetric: adjustedMetrics.runtime, targetMetric: adjustedMetrics.target,
+    headlineMetrics: [adjustedMetrics.resource, adjustedMetrics.loss, adjustedMetrics.production, adjustedMetrics.runtime], warnings: governedWarnings,
     assumptions, unknowns, cost: cost(p.familyId, p), limitingFactor, nextMeasurement,
   };
 }
@@ -555,8 +657,8 @@ function evaluateGravity(p: ProjectModel): EngineResult {
   const velocityHead = velocity ** 2 / (2 * 9.81);
   const headLoss = required(p, "frictionFactor") * (routeLength / diameter) * velocityHead + required(p, "minorLossCoefficient") * velocityHead;
   const netHead = Math.max(0, grossHead - headLoss);
-  const efficiency = required(p, "turbineEfficiency") * required(p, "generatorEfficiency");
-  const storedEnergy = (1000 * 9.81 * required(p, "reservoirVolumeM3") * netHead * efficiency) / 3_600_000;
+  const efficiency = required(p, "turbineEfficiency") * required(p, "generatorEfficiency") * pathPerformanceFactor(p);
+  const storedEnergy = (1000 * 9.81 * required(p, "reservoirVolumeM3") * storagePerformanceFactor(p) * netHead * efficiency) / 3_600_000;
   const generatedPower = (1000 * 9.81 * flow * netHead * efficiency) / 1000;
   const requiredEnergy = required(p, "criticalLoadKw") * required(p, "autonomyHours");
   const runtime = storedEnergy / required(p, "criticalLoadKw");
@@ -577,6 +679,7 @@ function evaluateGravity(p: ProjectModel): EngineResult {
     { label: "Terrain elevations", value: "Reference contour model", truth: "assumed" },
     { label: "Design flow", value: `${required(p, "designFlowM3s") * 1000} L/s`, truth: "assumed" },
     { label: "Conversion efficiency", value: `${round(efficiency * 100, 0)}%`, truth: "assumed" },
+    { label: "Active component performance", value: `${round(pathPerformanceFactor(p) * 100, 0)}% of standard reference`, truth: "estimated" },
   ], [{ label: "Geotechnical conditions", truth: "unknown" }, { label: "Permit requirements", truth: "unknown" }],
   storedEnergy < requiredEnergy ? "Usable elevation, water volume, and hydraulic loss limit the autonomy window." : "The defined storage and head meet the current autonomy target.",
   "Measure upper and lower water elevations, usable volume, route length, and sustainable pipe flow.", gravityFeasibility);
@@ -595,8 +698,8 @@ function evaluateSolar(p: ProjectModel): EngineResult {
   const shadeLoss = (1 - shadeFactor) * 100;
   const effectiveSun = required(p, "peakSunHours") * shadeFactor;
   const failed = activeFailure(p);
-  const dailyHarvest = failed ? 0 : required(p, "solarArrayKw") * effectiveSun * required(p, "solarDerate");
-  const usableBattery = required(p, "batteryCapacityKwh") * required(p, "batteryUsableFraction") * required(p, "inverterEfficiency");
+  const dailyHarvest = failed ? 0 : required(p, "solarArrayKw") * effectiveSun * required(p, "solarDerate") * pathPerformanceFactor(p);
+  const usableBattery = required(p, "batteryCapacityKwh") * required(p, "batteryUsableFraction") * required(p, "inverterEfficiency") * storagePerformanceFactor(p);
   const target = required(p, "criticalLoadKw") * required(p, "autonomyHours");
   const runtime = usableBattery / required(p, "criticalLoadKw");
   const warnings: EngineWarning[] = [];
@@ -612,6 +715,7 @@ function evaluateSolar(p: ProjectModel): EngineResult {
     { label: "Peak sun resource", value: `${required(p, "peakSunHours")} h/day`, truth: "assumed" },
     { label: "System derating", value: `${round((1 - required(p, "solarDerate")) * 100, 0)}%`, truth: "assumed" },
     { label: "Usable battery fraction", value: `${round(required(p, "batteryUsableFraction") * 100, 0)}%`, truth: "assumed" },
+    { label: "Active component performance", value: `${round(pathPerformanceFactor(p) * 100, 0)}% of standard reference`, truth: "estimated" },
   ], [{ label: "Measured roof shading", truth: "unknown" }, { label: "Interconnection requirements", truth: "unknown" }],
   shadeLoss > 20 ? "Modeled shade is the largest visible constraint on daily harvest." : dailyHarvest < target ? "Array capacity limits daily replenishment." : "The defined array and storage meet the modeled critical-load target.",
   "Measure seasonal shade, roof or ground area, electrical loads, and service-panel constraints.");
@@ -731,6 +835,13 @@ function genericEvaluation(p: ProjectModel): EngineResult {
     unknowns.push({ label: "Coincident seasonal source profile", truth: "unknown" }, { label: "Protection and interconnection design", truth: "unknown" });
   }
 
+  const pathwayFactor = pathPerformanceFactor(p);
+  const storageFactor = storagePerformanceFactor(p);
+  if (typeof production.value === "number") production = { ...production, value: round(production.value * pathwayFactor, 2) };
+  if (typeof storage.value === "number") storage = { ...storage, value: round(storage.value * storageFactor, 2) };
+  if (typeof runtime.value === "number") runtime = { ...runtime, value: round(runtime.value * storageFactor, 1) };
+  assumptions.push({ label: "Active component performance", value: `${round(pathwayFactor * 100, 0)}% of standard reference`, truth: "estimated" });
+
   const warnings: EngineWarning[] = [];
   const targetAmount = Number(target.value ?? 0);
   const productionAmount = Number(production.value ?? 0);
@@ -768,6 +879,17 @@ export function applyMutation(p: ProjectModel, mutation: DomainMutation): Projec
   if (mutation.type === "set-autonomy-hours") return { ...p, parameters: { ...p.parameters, autonomyHours: clamp(mutation.valueHours, 1, 72) } };
   if (mutation.type === "set-intake-blocked" && p.familyId === "gravity-storage") return { ...p, failures: { ...p.failures, intakeBlocked: mutation.blocked, activeFailure: false } };
   if (mutation.type === "set-inverter-offline" && p.familyId === "solar-pv") return { ...p, failures: { ...p.failures, inverterOffline: mutation.offline, activeFailure: false } };
+  if (mutation.type === "select-component-variant") {
+    const current = p.components[mutation.id];
+    if (!current || !COMPONENT_VARIANTS.some((item) => item.id === mutation.variantId)) return p;
+    return { ...p, components: { ...p.components, [mutation.id]: { ...current, variantId: mutation.variantId } } };
+  }
+  if (mutation.type === "set-inaction-annual-cost") return { ...p, parameters: { ...p.parameters, annualBaselineCost: clamp(mutation.value, 0, 50000) } };
+  if (mutation.type === "set-inaction-disruption-cost") return { ...p, parameters: { ...p.parameters, annualDisruptionCost: clamp(mutation.value, 0, 50000) } };
+  if (mutation.type === "set-inaction-years") return { ...p, parameters: { ...p.parameters, inactionYears: clamp(Math.round(mutation.value), 1, 20) } };
+  if (mutation.type === "set-property-objective") return { ...p, property: { ...p.property, objective: mutation.objective } };
+  if (mutation.type === "set-property-budget") return { ...p, property: { ...p.property, budgetBand: mutation.budgetBand } };
+  if (mutation.type === "set-property-resource") return { ...p, property: { ...p.property, resources: { ...p.property.resources, [mutation.resource]: mutation.level } } };
   return p;
 }
 

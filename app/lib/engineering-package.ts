@@ -1,14 +1,67 @@
-import type { EnergyFamilyId } from "./architecture-catalog.ts";
+import { ENERGY_FAMILIES, type EnergyFamilyId } from "./architecture-catalog.ts";
 import {
+  COMPONENT_VARIANTS,
   commitMutation,
+  createReferenceProject,
   evaluateProject,
   FAMILY_SCENARIOS,
   type EnergyComponent,
   type EngineResult,
   type Feasibility,
   type ProjectModel,
+  type PropertyResourceId,
   type TruthState,
 } from "./family-engine.ts";
+
+export interface AssemblyPart {
+  number: string;
+  name: string;
+  function: string;
+  interface: string;
+  inspection: string;
+  failureEffect: string;
+}
+
+export interface ExplodedAssembly {
+  componentId: string;
+  componentLabel: string;
+  componentKind: EnergyComponent["kind"];
+  variantLabel: string;
+  serviceLife: string;
+  evidence: string;
+  boundary: string;
+  parts: AssemblyPart[];
+  assemblyOrder: string[];
+  serviceAccess: string;
+  isolationGate: string;
+}
+
+export interface CostOfInaction {
+  annualBaselineCost: number;
+  annualDisruptionCost: number;
+  annualEscalationPercent: number;
+  horizonYears: number;
+  cumulativeOperatingCost: number;
+  cumulativeDisruptionExposure: number;
+  combinedExposure: number;
+  comparisonToAccessibleLow: number;
+  projections: Array<{ years: number; operating: number; disruption: number; combined: number }>;
+  truth: "estimated";
+  basis: string;
+  notMonetized: string[];
+  interpretation: string;
+}
+
+export interface FamilyMatch {
+  familyId: EnergyFamilyId;
+  name: string;
+  score: number;
+  status: "STRONG MATCH" | "POSSIBLE" | "MEASURE FIRST";
+  resourceLevel: "available" | "possible" | "not identified";
+  reason: string;
+  firstMeasurement: string;
+  referenceVerdict: Feasibility;
+}
 
 export interface ScheduledComponent {
   id: string;
@@ -74,6 +127,9 @@ export interface EngineeringPackage {
   budget: BudgetLine[];
   resilience: ResilienceCase[];
   accessPath: AccessTier[];
+  assemblies: ExplodedAssembly[];
+  costOfInaction: CostOfInaction;
+  familyMatches: FamilyMatch[];
   fieldSequence: FieldPhase[];
   record: {
     project: ProjectModel;
@@ -348,7 +404,11 @@ function buildSchedule(project: ProjectModel): ScheduledComponent[] {
 function buildBudget(project: ProjectModel, result: EngineResult): BudgetLine[] {
   const components = Object.values(project.components);
   const siteWeight = 1.35;
-  const weights = components.map((component) => component.kind === "conversion" ? 1.2 : component.kind === "storage" ? 1.35 : 1);
+  const weights = components.map((component) => {
+    const kindWeight = component.kind === "conversion" ? 1.2 : component.kind === "storage" ? 1.35 : 1;
+    const selectedVariant = COMPONENT_VARIANTS.find((item) => item.id === component.variantId) ?? COMPONENT_VARIANTS[1];
+    return kindWeight * selectedVariant.costFactor;
+  });
   const totalWeight = weights.reduce((sum, weight) => sum + weight, siteWeight);
   const lines = components.map((component, index) => {
     const fraction = weights[index] / totalWeight;
@@ -359,7 +419,7 @@ function buildBudget(project: ProjectModel, result: EngineResult): BudgetLine[] 
       unit: "assembly",
       accessible: { low: money(result.cost.accessible.low * fraction), high: money(result.cost.accessible.high * fraction) },
       installed: { low: money(result.cost.installed.low * fraction), high: money(result.cost.installed.high * fraction) },
-      basis: "Allocated planning allowance; verify equipment and local labor before a decision.",
+      basis: `${COMPONENT_VARIANTS.find((item) => item.id === component.variantId)?.label ?? "Standard new"} planning allowance; verify make, model, rating, condition, equipment price, and local labor before a decision.`,
       truth: "estimated" as const,
     };
   });
@@ -513,6 +573,140 @@ function buildAccessPath(project: ProjectModel, result: EngineResult): AccessTie
   ];
 }
 
+const ASSEMBLY_TEMPLATES: Record<EnergyComponent["kind"], Array<Omit<AssemblyPart, "number">>> = {
+  source: [
+    { name: "Resource interface", function: "Receives the available property resource at the component boundary", interface: "Site resource to capture element", inspection: "Verify measured resource, obstruction, contamination, and access", failureEffect: "Available input falls below the governed assumption" },
+    { name: "Capture element", function: "Converts the raw property resource into the component's usable input", interface: "Resource interface to collection or drive surface", inspection: "Check rating, active area, wear, fouling, alignment, and condition", failureEffect: "Production derates or becomes intermittent" },
+    { name: "Mounting and support", function: "Maintains geometry, alignment, and environmental resistance", interface: "Component body to roof, tower, ground, waterway, or frame", inspection: "Verify loads, fasteners, foundations, corrosion, drainage, and clearances", failureEffect: "Geometry changes, damage propagates, or the assembly becomes unsafe" },
+    { name: "Isolation and protection", function: "Allows the source to be disconnected and contains abnormal operation", interface: "Source outlet to governed route", inspection: "Confirm accessible isolation, ratings, guards, screening, and labels", failureEffect: "A source fault can propagate into conversion or distribution" },
+    { name: "Resource sensing", function: "Makes actual input and degradation observable", interface: "Measured point to controller or field log", inspection: "Calibrate or compare against a traceable field measurement", failureEffect: "The system operates on an unverified resource assumption" },
+  ],
+  conversion: [
+    { name: "Primary converter", function: "Changes the incoming carrier into useful electrical, thermal, hydraulic, gas, or mechanical output", interface: "Source route to converted-output route", inspection: "Verify rating, operating curve, materials, rotation, temperature, pressure, or voltage", failureEffect: "Useful output falls or the complete path opens" },
+    { name: "Coupling or transfer stage", function: "Transfers energy between the incoming route and primary converter", interface: "Pipe, shaft, conductors, exchanger surface, or gas train", inspection: "Check alignment, seals, torque, continuity, leakage, fouling, and loss", failureEffect: "Loss rises and upstream energy no longer reaches the converter" },
+    { name: "Control stage", function: "Keeps the converter within defined operating limits", interface: "Sensors and commands to the converter", inspection: "Test setpoints, fail-safe behavior, alarms, and manual override", failureEffect: "Output becomes unavailable, unstable, or unsafe" },
+    { name: "Protection stage", function: "Contains overcurrent, overspeed, overpressure, over-temperature, reverse flow, or other abnormal states", interface: "Converter to isolation and safe discharge path", inspection: "Test protective devices and document trip or relief settings", failureEffect: "A conversion fault can damage storage, routes, loads, or people" },
+    { name: "Service enclosure", function: "Preserves environmental protection and safe maintenance access", interface: "Equipment internals to service zone", inspection: "Confirm ingress rating, ventilation, drainage, labeling, and working clearance", failureEffect: "Weather, heat, contamination, or inaccessible service accelerates failure" },
+  ],
+  storage: [
+    { name: "Storage medium", function: "Holds electrical, thermal, hydraulic, gas, or gravitational potential for later use", interface: "Charge path to discharge path", inspection: "Verify usable capacity, condition, chemistry, temperature, pressure, water level, or state of charge", failureEffect: "Autonomy and available service time fall" },
+    { name: "Containment structure", function: "Keeps the stored medium inside its safe physical boundary", interface: "Storage medium to foundation and environment", inspection: "Inspect leaks, deformation, corrosion, supports, drainage, ventilation, and secondary containment", failureEffect: "Stored energy or material is released outside the governed path" },
+    { name: "Charge and recharge interface", function: "Accepts energy without exceeding storage limits", interface: "Conversion output to storage inlet", inspection: "Verify limits, check valves, charge control, thermal management, and isolation", failureEffect: "Storage cannot be replenished or is damaged during recharge" },
+    { name: "Discharge and isolation interface", function: "Delivers stored energy and makes the store safe to service", interface: "Storage outlet to distribution route", inspection: "Test isolation, protection, emergency shutdown, and residual-energy procedure", failureEffect: "Loads lose service or stored energy remains hazardous during maintenance" },
+    { name: "State monitoring", function: "Reports capacity, level, pressure, temperature, or state of charge", interface: "Storage measurement to controller and maintenance record", inspection: "Compare indicated state with an independent measurement", failureEffect: "Runtime and remaining capacity become uncertain" },
+  ],
+  load: [
+    { name: "Service interface", function: "Receives the governed energy carrier at the intended useful task", interface: "Distribution route to load boundary", inspection: "Verify carrier, rating, connection, and intended service", failureEffect: "Useful service is not delivered even when supply exists" },
+    { name: "Priority isolation", function: "Separates this load without disabling unrelated services", interface: "Branch route to load disconnect", inspection: "Confirm accessible, labeled isolation and safe residual-energy state", failureEffect: "Maintenance requires a wider shutdown or a load fault propagates" },
+    { name: "Branch protection", function: "Limits abnormal current, pressure, temperature, speed, or flow at the load", interface: "Load inlet to protective device", inspection: "Verify device type, rating, test interval, and coordination", failureEffect: "A load-side fault damages upstream equipment or the service area" },
+    { name: "Use-point control", function: "Matches delivered energy to actual demand", interface: "Operator or automatic command to the load", inspection: "Test operating range, stop state, priority behavior, and failure response", failureEffect: "Demand exceeds the modeled priority-load boundary" },
+    { name: "Service and measurement point", function: "Provides safe inspection and confirms delivered useful output", interface: "Load output to field measurement", inspection: "Preserve clearance and record baseline demand and service output", failureEffect: "Performance degradation remains hidden" },
+  ],
+};
+
+function buildAssemblies(project: ProjectModel): ExplodedAssembly[] {
+  return Object.values(project.components).map((componentItem) => {
+    const selectedVariant = COMPONENT_VARIANTS.find((item) => item.id === componentItem.variantId) ?? COMPONENT_VARIANTS[1];
+    const parts = ASSEMBLY_TEMPLATES[componentItem.kind].map((part, index) => ({ ...part, number: String(index + 1).padStart(2, "0"), name: `${componentItem.label}: ${part.name}` }));
+    return {
+      componentId: componentItem.id,
+      componentLabel: componentItem.label,
+      componentKind: componentItem.kind,
+      variantLabel: selectedVariant.label,
+      serviceLife: selectedVariant.serviceLife,
+      evidence: selectedVariant.evidence,
+      boundary: selectedVariant.boundary,
+      parts,
+      assemblyOrder: ["Verify the site and route interface", "Install support and containment", "Set the primary equipment", "Connect transfer, isolation, and protection", "Connect controls and sensing", "Inspect before energizing or filling", "Commission under a bounded test condition"],
+      serviceAccess: `Maintain unobstructed access to isolation, protection, sensing, and the primary ${componentItem.kind} assembly; selected-equipment instructions govern final clearance.`,
+      isolationGate: `Prove the ${componentItem.label} is isolated from every connected carrier and residual energy is controlled before service.`,
+    };
+  });
+}
+
+function projection(annual: number, disruption: number, escalation: number, years: number) {
+  let operating = 0;
+  for (let year = 0; year < years; year += 1) operating += annual * (1 + escalation) ** year;
+  const disruptionTotal = disruption * years;
+  return { years, operating: money(operating), disruption: money(disruptionTotal), combined: money(operating + disruptionTotal) };
+}
+
+function buildCostOfInaction(project: ProjectModel, result: EngineResult): CostOfInaction {
+  const annual = project.parameters.annualBaselineCost ?? 0;
+  const disruption = project.parameters.annualDisruptionCost ?? 0;
+  const years = project.parameters.inactionYears ?? 5;
+  const escalationPercent = project.parameters.annualEscalationPercent ?? 3;
+  const horizons = [...new Set([1, years, 10])].sort((a, b) => a - b);
+  const projections = horizons.map((horizon) => projection(annual, disruption, escalationPercent / 100, horizon));
+  const selected = projection(annual, disruption, escalationPercent / 100, years);
+  const comparison = selected.combined - result.cost.accessible.low;
+  return {
+    annualBaselineCost: annual,
+    annualDisruptionCost: disruption,
+    annualEscalationPercent: escalationPercent,
+    horizonYears: years,
+    cumulativeOperatingCost: selected.operating,
+    cumulativeDisruptionExposure: selected.disruption,
+    combinedExposure: selected.combined,
+    comparisonToAccessibleLow: money(comparison),
+    projections,
+    truth: "estimated",
+    basis: "User-editable annual operating or utility expense plus annual disruption exposure, with a visible reference escalation assumption. This is an exposure scenario, not a savings guarantee.",
+    notMonetized: ["Financing and opportunity cost", "Equipment replacement and maintenance", "Changes in property use or demand", "Unpriced safety, environmental, comfort, productivity, and resilience effects", ...result.unknowns.map((item) => item.label)],
+    interpretation: comparison >= 0
+      ? `The selected ${years}-year exposure is ${money(comparison)} above the low accessible planning boundary. That comparison does not prove the system pays back because measured performance, maintenance, financing, and actual quotes remain unresolved.`
+      : `The selected ${years}-year exposure is ${money(Math.abs(comparison))} below the low accessible planning boundary. Cost alone does not determine whether the project should proceed.`,
+  };
+}
+
+const FAMILY_RESOURCE: Record<EnergyFamilyId, PropertyResourceId | "gravity" | "hybrid"> = {
+  "solar-pv": "solar", "solar-thermal": "solar", wind: "wind", "flow-power": "waterFlow",
+  bioenergy: "biomass", "thermal-recovery": "wasteHeat", "mechanical-human": "humanMotion",
+  "gravity-storage": "gravity", "coordinated-hybrid": "hybrid",
+};
+
+const OBJECTIVE_FIT: Record<ProjectModel["property"]["objective"], EnergyFamilyId[]> = {
+  "reduce-cost": ["solar-pv", "solar-thermal", "flow-power", "thermal-recovery"],
+  backup: ["solar-pv", "wind", "mechanical-human", "gravity-storage", "coordinated-hybrid"],
+  "water-service": ["wind", "flow-power", "gravity-storage", "coordinated-hybrid"],
+  "use-waste": ["bioenergy", "thermal-recovery", "coordinated-hybrid"],
+  independence: ["solar-pv", "wind", "flow-power", "gravity-storage", "coordinated-hybrid"],
+};
+
+function matchResourceLevel(project: ProjectModel, familyId: EnergyFamilyId) {
+  const resource = FAMILY_RESOURCE[familyId];
+  const r = project.property.resources;
+  if (resource === "gravity") return Math.min(r.waterStorage, r.elevation);
+  if (resource === "hybrid") return Math.max(r.solar, r.wind, r.waterFlow, Math.min(r.waterStorage, r.elevation));
+  return r[resource];
+}
+
+function buildFamilyMatches(project: ProjectModel): FamilyMatch[] {
+  const budgetCeiling = { existing: 0, starter: 5000, staged: 20000, complete: Number.POSITIVE_INFINITY }[project.property.budgetBand];
+  return ENERGY_FAMILIES.map((family) => {
+    const reference = createReferenceProject(family.id, project.revision, project.property);
+    const result = evaluateProject(reference);
+    const resourceLevel = matchResourceLevel(project, family.id);
+    const resourceScore = [0, 35, 60][resourceLevel];
+    const objectiveScore = OBJECTIVE_FIT[project.property.objective].includes(family.id) ? 25 : 8;
+    const costScore = budgetCeiling === 0 ? 8 : result.cost.accessible.low <= budgetCeiling ? 15 : 4;
+    const diversityBonus = family.id === "coordinated-hybrid" && Object.values(project.property.resources).filter((level) => level > 0).length >= 3 ? 8 : 0;
+    const score = Math.min(100, resourceScore + objectiveScore + costScore + diversityBonus);
+    const status = resourceLevel === 0 ? "MEASURE FIRST" : score >= 75 ? "STRONG MATCH" : "POSSIBLE";
+    const resourceText = resourceLevel === 2 ? "The governing resource is marked available" : resourceLevel === 1 ? "The governing resource is possible but unmeasured" : "The governing resource has not been identified";
+    return {
+      familyId: family.id,
+      name: family.name,
+      score,
+      status,
+      resourceLevel: resourceLevel === 2 ? "available" : resourceLevel === 1 ? "possible" : "not identified",
+      reason: `${resourceText}; ${OBJECTIVE_FIT[project.property.objective].includes(family.id) ? "it aligns with the selected objective" : "it is a secondary objective fit"}; ${result.cost.accessible.low <= budgetCeiling || budgetCeiling === Number.POSITIVE_INFINITY ? "the complete reference enters the selected budget band" : "begin with its access path rather than the complete reference"}.`,
+      firstMeasurement: result.nextMeasurement,
+      referenceVerdict: result.feasibility,
+    } as FamilyMatch;
+  }).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+}
+
 function buildFieldSequence(project: ProjectModel): FieldPhase[] {
   const notes = FAMILY_FIELD_NOTES[project.familyId];
   return [
@@ -550,6 +744,9 @@ export function deriveEngineeringPackage(project: ProjectModel, result = evaluat
     budget: buildBudget(project, result),
     resilience: buildResilience(project, result),
     accessPath: buildAccessPath(project, result),
+    assemblies: buildAssemblies(project),
+    costOfInaction: buildCostOfInaction(project, result),
+    familyMatches: buildFamilyMatches(project),
     fieldSequence: buildFieldSequence(project),
     record,
   };

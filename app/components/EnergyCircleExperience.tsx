@@ -15,6 +15,7 @@ import {
   beginPreview,
   commitMutation,
   commitPreview,
+  COMPONENT_VARIANTS,
   createReferenceProject,
   deriveCausalInsight,
   evaluateProject,
@@ -36,7 +37,19 @@ import { deriveEngineeringPackage } from "../lib/engineering-package";
 import { EnergyCircleReport } from "./EnergyCircleReport";
 
 type ViewMode = "property" | "system" | "blueprint";
-type PackageView = "access" | "components" | "budget" | "resilience" | "field" | "record";
+type PackageView = "access" | "components" | "assembly" | "budget" | "inaction" | "resilience" | "field" | "record";
+
+const PROPERTY_OBJECTIVES = [
+  ["reduce-cost", "Reduce ongoing cost"], ["backup", "Protect essential loads"],
+  ["water-service", "Move or store water"], ["use-waste", "Use wasted resources"],
+  ["independence", "Increase independence"],
+] as const;
+const BUDGET_BANDS = [["existing", "$0 / existing"], ["starter", "Starter"], ["staged", "Staged"], ["complete", "Complete"]] as const;
+const PROPERTY_RESOURCES = [
+  ["solar", "Sun"], ["wind", "Wind"], ["waterFlow", "Water flow"], ["waterStorage", "Pond / tank"],
+  ["elevation", "Elevation"], ["biomass", "Biomass"], ["wasteHeat", "Waste heat"], ["humanMotion", "Human / machine motion"],
+] as const;
+const RESOURCE_LEVEL_LABELS = ["Not identified", "Possible", "Available"] as const;
 
 const formatValue = (metric: TruthValue) =>
   metric.value === null ? "Unknown" : `${String(metric.value)} ${metric.unit}`;
@@ -151,6 +164,8 @@ export function EnergyCircleExperience() {
   const engineeringPackage = useMemo(() => deriveEngineeringPackage(renderedProject, result), [renderedProject, result]);
   const scenario = FAMILY_SCENARIOS[project.familyId];
   const selectedComponent = renderedProject.components[selected] ?? Object.values(renderedProject.components)[0];
+  const selectedAssembly = engineeringPackage.assemblies.find((item) => item.componentId === selectedComponent?.id) ?? engineeringPackage.assemblies[0];
+  const topMatches = engineeringPackage.familyMatches.slice(0, 3);
   const focusedFamily = ENERGY_FAMILIES.find((family) => family.id === project.familyId) ?? DEFAULT_FAMILY;
   const failureActive =
     renderedProject.failures.activeFailure ||
@@ -173,7 +188,7 @@ export function EnergyCircleExperience() {
       return;
     }
     const nextScenario = FAMILY_SCENARIOS[familyId];
-    setProject(createReferenceProject(familyId, project.revision + 1));
+    setProject(createReferenceProject(familyId, project.revision + 1, project.property));
     setSelected(nextScenario.initialComponent);
     setLastChanged(nextScenario.initialComponent);
     setPromptFamily(familyId);
@@ -297,7 +312,7 @@ export function EnergyCircleExperience() {
         <a className="brand" href="#families" aria-label="EnergyCircle home"><span className="brand__orbit" aria-hidden="true"><i /></span><span>EnergyCircle</span></a>
         <div className="topbar__context"><span>Nine governed families</span><i aria-hidden="true" /><span>Revision {project.revision}</span></div>
         <button className="quiet-button" type="button" onClick={() => {
-          setProject((current) => createReferenceProject(current.familyId, current.revision + 1));
+          setProject((current) => createReferenceProject(current.familyId, current.revision + 1, current.property));
           setSelected(scenario.initialComponent);
           setLastChanged(scenario.initialComponent);
           setPromptFamily(project.familyId);
@@ -321,6 +336,16 @@ export function EnergyCircleExperience() {
         </div>
       </section>
 
+      <section className="property-brief" aria-labelledby="property-brief-title">
+        <div className="property-brief__heading"><div><span className="eyebrow">Structured property brief</span><h2 id="property-brief-title">Tell the model what this land can actually offer.</h2></div><p>Three quick choices rank all nine families and govern the active model. “Possible” resources are derated until measured; absent resources cannot produce fictional output.</p></div>
+        <div className="property-brief__grid">
+          <fieldset><legend>1. Primary objective</legend><div className="brief-options">{PROPERTY_OBJECTIVES.map(([id, label]) => <button type="button" key={id} aria-pressed={project.property.objective === id} className={project.property.objective === id ? "is-active" : ""} onClick={() => commit({ type: "set-property-objective", objective: id })}>{label}</button>)}</div></fieldset>
+          <fieldset><legend>2. Starting budget</legend><div className="brief-options brief-options--budget">{BUDGET_BANDS.map(([id, label]) => <button type="button" key={id} aria-pressed={project.property.budgetBand === id} className={project.property.budgetBand === id ? "is-active" : ""} onClick={() => commit({ type: "set-property-budget", budgetBand: id })}>{label}</button>)}</div></fieldset>
+          <fieldset><legend>3. Property resources</legend><div className="resource-options">{PROPERTY_RESOURCES.map(([id, label]) => { const level = project.property.resources[id]; return <button type="button" key={id} className={`resource-option resource-option--${level}`} aria-label={`${label}: ${RESOURCE_LEVEL_LABELS[level]}. Click to change.`} onClick={() => commit({ type: "set-property-resource", resource: id, level: ((level + 1) % 3) as 0 | 1 | 2 })}><span>{label}</span><strong>{RESOURCE_LEVEL_LABELS[level]}</strong></button>; })}</div></fieldset>
+        </div>
+        <div className="property-matches"><div><span className="eyebrow">Current strongest paths</span><p>Compatibility explains; it does not choose for you.</p></div>{topMatches.map((match, index) => <article key={match.familyId}><span>0{index + 1}</span><div><strong>{match.name}</strong><small>{match.status} Â· {match.score}/100</small><p>{match.reason}</p></div><button type="button" onClick={() => activateFamily(match.familyId)}>Open</button></article>)}</div>
+      </section>
+
       <section className="family-atlas" aria-labelledby="family-atlas-title">
         <div className="family-atlas__heading">
           <div><span className="eyebrow">Energy family atlas</span><h2 id="family-atlas-title">Nine systems. One property truth.</h2></div>
@@ -331,7 +356,7 @@ export function EnergyCircleExperience() {
             <button type="button" key={family.id} className={`family-card is-live${project.familyId === family.id ? " is-focused is-active-model" : ""}`} aria-pressed={project.familyId === family.id} onClick={() => activateFamily(family.id)}>
               <span className="family-card__glyph" aria-hidden="true">{family.glyph}</span>
               <span className="family-card__copy"><strong>{family.shortName}</strong><small>{family.source}</small></span>
-              <span className="family-card__state">{project.familyId === family.id ? "Active system" : "Open system"}</span>
+              <span className="family-card__state">{project.familyId === family.id ? "Active system" : engineeringPackage.familyMatches.find((match) => match.familyId === family.id)?.status ?? "Open system"}</span>
             </button>
           ))}
         </div>
@@ -406,6 +431,11 @@ export function EnergyCircleExperience() {
                 </label>
               );
             })}
+            <div className="replacement-control">
+              <div><span className="eyebrow">Replace component</span><p>Selections change governed performance, storage, cost, assemblies, and exports.</p></div>
+              <div className="replacement-options">{COMPONENT_VARIANTS.map((variant) => <button type="button" key={variant.id} className={selectedComponent?.variantId === variant.id ? "is-active" : ""} aria-pressed={selectedComponent?.variantId === variant.id} onClick={() => selectedComponent && commit({ type: "select-component-variant", id: selectedComponent.id, variantId: variant.id }, selectedComponent.id)}><strong>{variant.label}</strong><span>{Math.round(variant.performanceFactor * 100)}% performance Â· {variant.costFactor}Ã— cost</span></button>)}</div>
+              <small>{COMPONENT_VARIANTS.find((variant) => variant.id === selectedComponent?.variantId)?.boundary}</small>
+            </div>
           </div>
 
           <div className="analysis-panel__section">
@@ -451,7 +481,9 @@ export function EnergyCircleExperience() {
           {([
             ["access", "$0 to complete"],
             ["components", "Component schedule"],
+            ["assembly", "Exploded assemblies"],
             ["budget", "Budget"],
+            ["inaction", "Cost of inaction"],
             ["resilience", "Resilience"],
             ["field", "Field sequence"],
             ["record", "Revision record"],
@@ -481,6 +513,13 @@ export function EnergyCircleExperience() {
             </article>)}</div>
           </>}
 
+          {packageView === "assembly" && selectedAssembly && <>
+            <div className="package-panel__topline"><div><span className="eyebrow">Exploded assembly</span><h3>{selectedAssembly.componentLabel}</h3></div><p>Select any property component, then inspect its interfaces, inspection gates, failure propagation, service access, and governed replacement.</p></div>
+            <div className="assembly-summary"><div><span>Active replacement</span><strong>{selectedAssembly.variantLabel}</strong></div><div><span>Service-life evidence</span><strong>{selectedAssembly.serviceLife}</strong></div><p>{selectedAssembly.evidence}</p></div>
+            <div className="exploded-assembly">{selectedAssembly.parts.map((part) => <article key={part.number}><span>{part.number}</span><div><h4>{part.name}</h4><p>{part.function}</p><dl><div><dt>Interface</dt><dd>{part.interface}</dd></div><div><dt>Inspection gate</dt><dd>{part.inspection}</dd></div><div><dt>If it fails</dt><dd>{part.failureEffect}</dd></div></dl></div></article>)}</div>
+            <div className="assembly-field-grid"><article><span>Assembly order</span><ol>{selectedAssembly.assemblyOrder.map((step) => <li key={step}>{step}</li>)}</ol></article><article><span>Service access</span><p>{selectedAssembly.serviceAccess}</p><span>Isolation gate</span><p>{selectedAssembly.isolationGate}</p><aside>{selectedAssembly.boundary}</aside></article></div>
+          </>}
+
           {packageView === "budget" && <>
             <div className="package-panel__topline"><div><span className="eyebrow">Itemized planning budget</span><h3>See what the envelope contains.</h3></div><p>These are deterministic allocations of the current planning range, not vendor prices or quotes.</p></div>
             <div className="budget-table" role="table" aria-label="System budget schedule">
@@ -488,6 +527,19 @@ export function EnergyCircleExperience() {
               {engineeringPackage.budget.map((line) => <div className="budget-row" role="row" key={line.id}><span><strong>{line.item}</strong><small>{line.basis}</small></span><span>{line.quantity} {line.unit}</span><span>{formatMoney(line.accessible.low)}â€“{formatMoney(line.accessible.high)}</span><span>{formatMoney(line.installed.low)}â€“{formatMoney(line.installed.high)}</span></div>)}
               <div className="budget-row budget-row--total" role="row"><span><strong>Current planning envelope</strong><small>{result.cost.sourceLabel} Â· {result.cost.sourceYear}</small></span><span /><span>{formatMoney(result.cost.accessible.low)}â€“{formatMoney(result.cost.accessible.high)}</span><span>{formatMoney(result.cost.installed.low)}â€“{formatMoney(result.cost.installed.high)}</span></div>
             </div>
+          </>}
+
+          {packageView === "inaction" && <>
+            <div className="package-panel__topline"><div><span className="eyebrow">Cost of inaction</span><h3>Price continued exposure without pretending it decides.</h3></div><p>Replace the reference assumptions with actual bills and disruption records. The result is a comparison, not a savings or payback promise.</p></div>
+            <div className="inaction-controls">
+              <label className="control"><span>Annual utility / operating cost <small>assumed</small></span><strong>{formatMoney(renderedProject.parameters.annualBaselineCost ?? 0)}</strong><input type="range" min="0" max="12000" step="100" value={renderedProject.parameters.annualBaselineCost ?? 0} onPointerDown={(event) => startControlPreview(event, { type: "set-inaction-annual-cost", value: renderedProject.parameters.annualBaselineCost ?? 0 })} onPointerUp={finishTransaction} onPointerCancel={cancelTransaction} onChange={(event) => updateControlPreview({ type: "set-inaction-annual-cost", value: Number(event.target.value) })} /></label>
+              <label className="control"><span>Annual disruption exposure <small>assumed</small></span><strong>{formatMoney(renderedProject.parameters.annualDisruptionCost ?? 0)}</strong><input type="range" min="0" max="12000" step="100" value={renderedProject.parameters.annualDisruptionCost ?? 0} onPointerDown={(event) => startControlPreview(event, { type: "set-inaction-disruption-cost", value: renderedProject.parameters.annualDisruptionCost ?? 0 })} onPointerUp={finishTransaction} onPointerCancel={cancelTransaction} onChange={(event) => updateControlPreview({ type: "set-inaction-disruption-cost", value: Number(event.target.value) })} /></label>
+              <label className="control"><span>Comparison horizon <small>assumed</small></span><strong>{renderedProject.parameters.inactionYears ?? 5} years</strong><input type="range" min="1" max="20" step="1" value={renderedProject.parameters.inactionYears ?? 5} onPointerDown={(event) => startControlPreview(event, { type: "set-inaction-years", value: renderedProject.parameters.inactionYears ?? 5 })} onPointerUp={finishTransaction} onPointerCancel={cancelTransaction} onChange={(event) => updateControlPreview({ type: "set-inaction-years", value: Number(event.target.value) })} /></label>
+            </div>
+            <div className="inaction-result"><div><span>{engineeringPackage.costOfInaction.horizonYears}-year operating exposure</span><strong>{formatMoney(engineeringPackage.costOfInaction.cumulativeOperatingCost)}</strong></div><div><span>Disruption exposure</span><strong>{formatMoney(engineeringPackage.costOfInaction.cumulativeDisruptionExposure)}</strong></div><div className="is-total"><span>Combined modeled exposure</span><strong>{formatMoney(engineeringPackage.costOfInaction.combinedExposure)}</strong></div></div>
+            <p className="inaction-interpretation">{engineeringPackage.costOfInaction.interpretation}</p>
+            <div className="inaction-projections">{engineeringPackage.costOfInaction.projections.map((item) => <article key={item.years}><span>{item.years} year{item.years === 1 ? "" : "s"}</span><strong>{formatMoney(item.combined)}</strong><small>{formatMoney(item.operating)} operating + {formatMoney(item.disruption)} disruption</small></article>)}</div>
+            <div className="inaction-boundary"><div><span className="truth truth--estimated">estimated</span><p>{engineeringPackage.costOfInaction.basis}</p></div><div><strong>Not monetized</strong><ul>{engineeringPackage.costOfInaction.notMonetized.map((item) => <li key={item}>{item}</li>)}</ul></div></div>
           </>}
 
           {packageView === "resilience" && <>
