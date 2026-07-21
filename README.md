@@ -82,7 +82,7 @@ No account, credentials, or sample-data upload is required.
 - A governed failure path for every family
 - Evidence-backed or explicitly bounded cost estimates with freshness metadata
 - Itemized component and site-work budget allowances derived from each active
-  familyâ€™s current planning envelope
+  family's current planning envelope
 - A connected component schedule with roles, dependencies, failure traces, and
   maintenance checkpoints
 - Five deterministic resilience conditions evaluated without mutating the

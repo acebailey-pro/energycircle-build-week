@@ -122,16 +122,25 @@ test(
 
       await page.locator(".family-card").filter({ has: page.getByText("Gravity storage", { exact: true }) }).click();
       await page.getByRole("heading", { name: "Hillside Water Storage" }).waitFor();
+      await page.getByRole("button", { name: "Reset system" }).click();
       assert.equal(await page.locator(".verdict strong").textContent(), "FRAGILE");
       await dragComponent(page, /Upper reservoir\. Drag to reposition/, 0.1);
       if (await page.locator(".verdict strong").textContent() !== "VIABLE") {
+        await page.getByRole("button", { name: "Reset system" }).click();
         const upperReservoir = page.getByRole("button", { name: /Upper reservoir\. Drag to reposition/ });
         for (let step = 0; step < 8; step += 1) {
           await upperReservoir.press("ArrowUp");
           if (await page.locator(".verdict strong").textContent() === "VIABLE") break;
         }
       }
-      assert.equal(await page.locator(".verdict strong").textContent(), "VIABLE");
+      const finalGravityVerdict = await page.locator(".verdict strong").textContent();
+      const gravityDiagnostic = {
+        verdict: finalGravityVerdict,
+        reservoir: await page.getByRole("button", { name: /Upper reservoir\. Drag to reposition/ }).getAttribute("aria-label"),
+        metrics: await page.locator(".metrics-grid").textContent(),
+        warnings: await page.locator(".warnings").textContent(),
+      };
+      assert.equal(finalGravityVerdict, "VIABLE", JSON.stringify(gravityDiagnostic));
       assert.match((await page.locator(".insight p").textContent()) ?? "", /fragile to viable/i);
 
       await page.getByRole("button", { name: /What might it cost/i }).click();

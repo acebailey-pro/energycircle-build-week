@@ -56,6 +56,8 @@ test("server-renders the EnergyCircle reference experience", async () => {
   assert.match(html, /Replace component/);
   assert.match(html, /Revision record/);
   assert.match(html, /What this result knows/);
+  assert.doesNotMatch(html, /Â|Ã|â€“|â†’/);
+  assert.match(html, /\$1,590 above the low accessible planning boundary/);
   assert.doesNotMatch(html, /Your site is taking shape|react-loading-skeleton/);
 });
 

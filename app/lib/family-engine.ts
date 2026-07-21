@@ -605,7 +605,7 @@ const cost = (familyId: EnergyFamilyId, p: ProjectModel): CostEstimate => {
     ...base,
     accessible: { low: scale(base.accessible.low), high: scale(base.accessible.high) },
     installed: { low: scale(base.installed.low), high: scale(base.installed.high) },
-    basis: `${base.basis} Active component selections apply a ${round(factor, 2)}Ã— planning-cost factor.`,
+    basis: `${base.basis} Active component selections apply a ${round(factor, 2)}× planning-cost factor.`,
   };
 };
 

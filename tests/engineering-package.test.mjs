@@ -61,6 +61,7 @@ test("cost of inaction uses governed editable assumptions without becoming a rec
   assert.equal(exposure.annualDisruptionCost, 600);
   assert.ok(exposure.combinedExposure > 30_000);
   assert.match(exposure.basis, /not a savings guarantee/i);
+  assert.match(exposure.interpretation, /\$[\d,]+/);
   assert.match(exposure.interpretation, /does not prove|does not determine/i);
 });
 

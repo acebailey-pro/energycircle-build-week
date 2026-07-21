@@ -2697,7 +2697,7 @@ footer {
 .assembly-summary p { margin: 0; color: rgba(236, 244, 239, 0.7); font-size: 0.75rem; line-height: 1.45; }
 .exploded-assembly { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.6rem; align-items: stretch; }
 .exploded-assembly article { position: relative; padding: 0.9rem; border: 1px solid rgba(222, 239, 229, 0.11); border-radius: 0.9rem; background: rgba(2, 15, 13, 0.38); }
-.exploded-assembly article:not(:last-child)::after { position: absolute; top: 22px; right: -0.55rem; z-index: 2; color: #76d6a3; content: "â†’"; }
+.exploded-assembly article:not(:last-child)::after { position: absolute; top: 22px; right: -0.55rem; z-index: 2; color: #76d6a3; content: "→"; }
 .exploded-assembly article > span { color: #8bdfb0; font: 700 0.68rem ui-monospace, SFMono-Regular, Menlo, monospace; }
 .exploded-assembly h4 { margin: 0.55rem 0 0.3rem; font-size: 0.82rem; line-height: 1.3; }
 .exploded-assembly p { margin: 0; color: rgba(231, 241, 234, 0.62); font-size: 0.69rem; line-height: 1.4; }

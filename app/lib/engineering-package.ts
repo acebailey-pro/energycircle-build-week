@@ -526,7 +526,7 @@ function buildAccessPath(project: ProjectModel, result: EngineResult): AccessTie
       id: "reclaimed",
       label: "Reclaimed or assisted entry",
       cost: { low: 0, high: reclaimedHigh },
-      costLabel: `$0â€“$${reclaimedHigh.toLocaleString("en-US")} out of pocket`,
+      costLabel: `$0–$${reclaimedHigh.toLocaleString("en-US")} out of pocket`,
       service: access.reclaimed,
       modeledOutput: "Output remains unknown until the reused equipment is identified, tested, and measured.",
       outputTruth: "unknown",
@@ -538,7 +538,7 @@ function buildAccessPath(project: ProjectModel, result: EngineResult): AccessTie
       id: "starter",
       label: "One-service starter",
       cost: { low: starterLow, high: starterHigh },
-      costLabel: `$${starterLow.toLocaleString("en-US")}â€“$${starterHigh.toLocaleString("en-US")} planning range`,
+      costLabel: `$${starterLow.toLocaleString("en-US")}–$${starterHigh.toLocaleString("en-US")} planning range`,
       service: access.starter,
       modeledOutput: `${output(starterResult)} under the starter-scale governed inputs; ${starterResult.feasibility.toLowerCase()} against the current priority load.`,
       outputTruth: "calculated",
@@ -550,7 +550,7 @@ function buildAccessPath(project: ProjectModel, result: EngineResult): AccessTie
       id: "staged",
       label: "Expandable staged system",
       cost: { low: stagedLow, high: stagedHigh },
-      costLabel: `$${stagedLow.toLocaleString("en-US")}â€“$${stagedHigh.toLocaleString("en-US")} planning range`,
+      costLabel: `$${stagedLow.toLocaleString("en-US")}–$${stagedHigh.toLocaleString("en-US")} planning range`,
       service: "Install a coherent portion of the governed architecture with protected interfaces sized so later capacity can be added deliberately.",
       modeledOutput: `${output(stagedResult)} under the staged governed inputs; ${stagedResult.feasibility.toLowerCase()} against the current priority load.`,
       outputTruth: "calculated",
@@ -562,7 +562,7 @@ function buildAccessPath(project: ProjectModel, result: EngineResult): AccessTie
       id: "complete",
       label: "Complete reference system",
       cost: result.cost.accessible,
-      costLabel: `$${result.cost.accessible.low.toLocaleString("en-US")}â€“$${result.cost.accessible.high.toLocaleString("en-US")} accessible planning range`,
+      costLabel: `$${result.cost.accessible.low.toLocaleString("en-US")}–$${result.cost.accessible.high.toLocaleString("en-US")} accessible planning range`,
       service: "Implement the complete source-to-load architecture represented by the current canonical EnergyCircle revision.",
       modeledOutput: `${output(result)}; ${result.feasibility.toLowerCase()} against the current defined target.`,
       outputTruth: result.productionMetric.truth,
@@ -654,8 +654,8 @@ function buildCostOfInaction(project: ProjectModel, result: EngineResult): CostO
     basis: "User-editable annual operating or utility expense plus annual disruption exposure, with a visible reference escalation assumption. This is an exposure scenario, not a savings guarantee.",
     notMonetized: ["Financing and opportunity cost", "Equipment replacement and maintenance", "Changes in property use or demand", "Unpriced safety, environmental, comfort, productivity, and resilience effects", ...result.unknowns.map((item) => item.label)],
     interpretation: comparison >= 0
-      ? `The selected ${years}-year exposure is ${money(comparison)} above the low accessible planning boundary. That comparison does not prove the system pays back because measured performance, maintenance, financing, and actual quotes remain unresolved.`
-      : `The selected ${years}-year exposure is ${money(Math.abs(comparison))} below the low accessible planning boundary. Cost alone does not determine whether the project should proceed.`,
+      ? `The selected ${years}-year exposure is $${money(comparison).toLocaleString("en-US")} above the low accessible planning boundary. That comparison does not prove the system pays back because measured performance, maintenance, financing, and actual quotes remain unresolved.`
+      : `The selected ${years}-year exposure is $${money(Math.abs(comparison)).toLocaleString("en-US")} below the low accessible planning boundary. Cost alone does not determine whether the project should proceed.`,
   };
 }
 
